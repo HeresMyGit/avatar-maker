@@ -81,7 +81,7 @@ export const TRAIT_CATEGORIES = {
       { id: 'hoodie_blue', label: 'Blue Hoodie', model: 'hoodie blue.glb' },
       { id: 'hoodie_white', label: 'White Hoodie', model: 'hoodie white.glb' },
       { id: 'hoodie_green', label: 'Green Hoodie', model: 'hoodie green.glb' },
-      { id: 'larva', label: 'Larva mfer', model: 'larva mfer.glb' }
+      { id: 'larva_mfer', label: 'Larva mfer', model: 'larva mfer.glb' }
     ]
   },
   hat_under_headphones: {

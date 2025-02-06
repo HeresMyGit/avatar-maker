@@ -10,4 +10,14 @@ export default defineConfig({
     }
   })],
   base: '/avatar-maker/',
+  server: {
+    proxy: {
+      '/cybermfers': {
+        target: 'https://cybermfers.sfo3.digitaloceanspaces.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path
+      }
+    }
+  }
 }) 

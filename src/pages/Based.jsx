@@ -90,6 +90,18 @@ const Based = ({ themeColor }) => {
       onSearch={handleSearch}
       searchPlaceholder="Enter based mfer ID"
       type="based"
+      marketplaceButtons={[
+        {
+          label: "OpenSea",
+          url: "https://opensea.io/collection/based-mfer-avatars",
+          disabled: false
+        },
+        {
+          label: "Mint",
+          url: "#",
+          disabled: true
+        }
+      ]}
     />
   );
 };

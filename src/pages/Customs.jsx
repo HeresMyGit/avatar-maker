@@ -1,36 +1,6 @@
 import { useState, useEffect } from 'react';
 import MferGallery from '../components/MferGallery';
 import { COLOR_MAP } from '../config/colors';
-import { TRAIT_CATEGORIES } from '../config/traits';
-
-// Helper function to get a random item from an array
-const getRandomItem = (array) => {
-  return array[Math.floor(Math.random() * array.length)];
-};
-
-// Generate random traits but force green background
-const generateGreenTraits = () => {
-  const traits = {
-    background: 'green', // Force green background
-    type: getRandomItem(TRAIT_CATEGORIES.type.options).id,
-    eyes: getRandomItem(TRAIT_CATEGORIES.eyes.options).id,
-    mouth: getRandomItem(TRAIT_CATEGORIES.mouth.options).id,
-    headphones: getRandomItem(TRAIT_CATEGORIES.headphones.options).id,
-    shoes_and_gloves: 'green' // Force green shoes and gloves
-  };
-
-  // Add optional traits with 50% chance each
-  const optionalCategories = Object.entries(TRAIT_CATEGORIES)
-    .filter(([key]) => !['background', 'type', 'eyes', 'mouth', 'headphones', 'shoes_and_gloves'].includes(key));
-
-  optionalCategories.forEach(([category, data]) => {
-    if (Math.random() > 0.5) {
-      traits[category] = getRandomItem(data.options).id;
-    }
-  });
-
-  return traits;
-};
 
 const FEATURED_MODELS = [
   { 
@@ -57,7 +27,6 @@ const Customs = ({ themeColor }) => {
   const [searchId, setSearchId] = useState('');
   const [models, setModels] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedTraits, setSelectedTraits] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -211,13 +180,6 @@ const Customs = ({ themeColor }) => {
     }
   };
 
-  const handleGoGreen = () => {
-    const greenTraits = generateGreenTraits();
-    setSelectedTraits(greenTraits);
-    // You might want to add additional logic here to update the preview or do something with the traits
-    console.log('Generated green traits:', greenTraits);
-  };
-
   return (
     <MferGallery
       title="Custom mfers"
@@ -230,8 +192,18 @@ const Customs = ({ themeColor }) => {
       searchPlaceholder="Enter custom mfer ID"
       type="custom"
       featuredModels={FEATURED_MODELS}
-      onGoGreen={handleGoGreen}
-      selectedTraits={selectedTraits}
+      marketplaceButtons={[
+        {
+          label: "Mint",
+          url: "https://www.mferavatars.xyz",
+          disabled: false
+        },
+        {
+          label: "OpenSea",
+          url: "https://opensea.io/collection/mfer-avatars-customs",
+          disabled: false
+        }
+      ]}
     />
   );
 };

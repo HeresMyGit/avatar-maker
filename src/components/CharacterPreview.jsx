@@ -5,75 +5,340 @@ import { TRAIT_CATEGORIES } from '../config/traits';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter';
 import * as THREE from 'three';
 
-// Helper component to load and display a single trait model
-function TraitModel({ traitType, traitId, onLoad }) {
-  // Skip loading model for background trait
-  if (traitType === 'background') return null;
-  
-  // Skip if no trait is selected
-  if (!traitId) return null;
-  
-  const trait = TRAIT_CATEGORIES[traitType]?.options.find(opt => opt.id === traitId);
-  if (!trait?.model) return null;
+const GLB_URL = "https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/builders/mfermashup.glb";
 
-  const { scene } = useGLTF(`/avatar-maker/3d-models/${trait.model}`);
-  
-  useEffect(() => {
-    if (scene && onLoad) {
-      // Clone the scene to avoid modifying the original
-      const clonedScene = scene.clone();
-      onLoad(traitType, clonedScene);
-    }
-  }, [scene, traitType, onLoad]);
-  
-  if (!scene) return null;
-  
-  return <primitive object={scene} />;
-}
+// Helper function to get type-specific mouth
+const getTypeMouth = (mouthType, bodyType) => {
+  if (bodyType === 'metal') return `${mouthType}_metal`;
+  if (bodyType === 'based_mfer') return `${mouthType}_mfercoin`;
+  return mouthType;
+};
+
+// Mapping of trait categories and their IDs to required mesh names
+const TRAIT_MESH_MAPPING = {
+  watch: {
+    'sub_lantern_green': ['watch_sub_lantern_green', 'watch_sub_strap_white'],
+    'sub_blue': ['watch_sub_blue', 'watch_sub_strap_white'],
+    'argo_white': ['watch_argo_white'],
+    'sub_cola': ['watch_sub_cola_blue_red', 'watch_sub_strap_white'],
+    'sub_turquoise': ['watch_sub_turquoise', 'watch_sub_strap_white'],
+    'sub_bat': ['watch_sub_bat_blue_black', 'watch_sub_strap_white'],
+    'oyster_silver': ['watch_oyster_silver', 'watch_sub_strap_white'],
+    'oyster_gold': ['watch_oyster_gold', 'watch_sub_strap_gold'],
+    'argo_black': ['watch_argo_black'],
+    'sub_black': ['watch_sub_black', 'watch_sub_strap_white'],
+    'sub_rose': ['watch_sub_rose', 'watch_sub_strap_white'],
+    'timex': ['watch_timex'],
+    'sub_red': ['watch_sub_red', 'watch_sub_strap_gray']
+  },
+
+  beard: {
+    'full': ['beard'],
+    'flat': ['beard_flat']
+  },
+
+  chain: {
+    'silver': ['chain_silver'],
+    'gold': ['chain_gold'],
+    'onchain': ['chain_onchain']
+  },
+
+  eyes: {
+    'nerd': ['eyes_normal', 'eyes_glasses', 'eyes_glasses_nerd'],
+    'purple_shades': ['eyes_normal', 'eyes_glasses', 'eyes_glasses_purple'],
+    '3d': ['eyes_normal', 'eyes_glases_3d', 'eyes_glasses_3d_lenses', 'eyes_glases_3d_rim'],
+    'eye_mask': ['eyes_normal', 'eyes_eye_mask'],
+    'vr': ['eyes_normal', 'eyes_vr', 'eyes_vr_lense'],
+    'zombie': ['eyes_zombie'],
+    'shades': ['eyes_normal', 'eyes_glasses', 'eyes_glasses_shades'],
+    'matrix': ['eyes_normal', 'eyes_glasses', 'eyes_glasses_shades_matrix'],
+    'trippy': ['eyes_normal', 'eyes_glasses', 'eyes_glasses_shades_s34n'],
+    'regular': ['eyes_normal'],
+    'metal': ['eyes_metal'],
+    'mfercoin': ['eyes_mfercoin'],
+    'red': ['eyes_red'],
+    'alien': ['eyes_alien'],
+    'eyepatch': ['eyes_normal', 'eyes_eye_patch']
+  },
+
+  hat_over_headphones: {
+    'cowboy': ['hat_cowboy_hat'],
+    'top': ['hat_tophat', 'hat_tophat_red'],
+    'pilot': ['hat_pilot_cap', 'hat_pilot_cap_rims', 'hat_pilot_cap_glasses'],
+    'hoodie_gray': ['shirt_hoodie_up_dark_gray', 'shirt_hoodie_dark_gray'],
+    'hoodie_pink': ['shirt_hoodie_up_pink', 'shirt_hoodie_pink'],
+    'hoodie_red': ['shirt_hoodie_up_red', 'shirt_hoodie_red'],
+    'hoodie_blue': ['shirt_hoodie_up_blue', 'shirt_hoodie_blue'],
+    'hoodie_white': ['shirt_hoodie_up_white', 'shirt_hoodie_white'],
+    'hoodie_green': ['shirt_hoodie_up_green', 'shirt_hoodie_green'],
+    'larva_mfer': ['larmf-lowpoly', 'larmf-lowpoly_1', 'larmf-lowpoly_2', 'larmf-lowpoly_3', 'larmf-lowpoly_4', 'larmf-lowpoly_5', 'larmf-lowpoly_6']
+  },
+
+  hat_under_headphones: {
+    'bandana_dark_gray': ['hat_bandana_dark_gray'],
+    'knit_kc': ['hat_knit_kc'],
+    'headband_blue_green': ['headband_blue_green'],
+    'headband_green_white': ['headband_green_white'],
+    'knit_las_vegas': ['hat_knit_las_vegas'],
+    'cap_monochrome': ['cap_monochrome'],
+    'knit_new_york': ['hat_knit_new_york'],
+    'cap_based_blue': ['cap_based_blue'],
+    'cap_purple': ['cap_purple'],
+    'knit_san_fran': ['hat_knit_san_fran'],
+    'knit_miami': ['hat_knit_miami'],
+    'knit_chicago': ['hat_knit_chicago'],
+    'knit_atlanta': ['hat_knit_atlanta'],
+    'bandana_red': ['hat_bandana_red'],
+    'knit_cleveland': ['hat_knit_cleveland'],
+    'headband_blue_red': ['headband_blue_red'],
+    'knit_dallas': ['hat_knit_dallas'],
+    'beanie_monochrome': ['hat_beanie_monochrome'],
+    'headband_pink_white': ['headband_pink_white'],
+    'beanie': ['hat_beanie'],
+    'knit_baltimore': ['hat_knit_baltimore'],
+    'knit_buffalo': ['hat_knit_buffalo'],
+    'bandana_blue': ['hat_bandana_blue'],
+    'headband_blue_white': ['headband_blue_white'],
+    'knit_pittsburgh': ['hat_knit_pittsburgh']
+  },
+
+  headphones: {
+    'lined': ['headphones_lined'],
+    'gold': ['headphones_gold'],
+    'blue': ['headphones_blue'],
+    'black': ['headphones_black'],
+    'pink': ['headphones_pink'],
+    'green': ['headphones_green'],
+    'white': ['headphones_white'],
+    'red': ['headphones_red'],
+    'black_square': ['headphones_square_black'],
+    'blue_square': ['headphones_square_blue'],
+    'gold_square': ['headphones_square_gold']
+  },
+
+  long_hair: {
+    'long_yellow': ['hair_long_light'],
+    'long_black': ['hair_long_dark'],
+    'long_curly': ['hair_long_curly']
+  },
+
+  mouth: {
+    'smile': ['mouth_smile'],
+    'flat': ['mouth_flat']
+  },
+
+  shirt: {
+    'collared_pink': ['shirt_collared_pink'],
+    'collared_green': ['shirt_collared_green'],
+    'collared_yellow': ['shirt_collared_yellow'],
+    'hoodie_down_red': ['shirt_hoodie_down_red', 'shirt_hoodie_red'],
+    'hoodie_down_pink': ['shirt_hoodie_down_pink', 'shirt_hoodie_pink'],
+    'collared_white': ['shirt_collared_white'],
+    'collared_turquoise': ['shirt_collared_turquoise'],
+    'collared_blue': ['shirt_collared_blue'],
+    'hoodie_down_white': ['shirt_hoodie_down_white', 'shirt_hoodie_white'],
+    'hoodie_down_green': ['shirt_hoodie_down_green', 'shirt_hoodie_green'],
+    'hoodie_down_gray': ['shirt_hoodie_down_dark_gray', 'shirt_hoodie_dark_gray'],
+    'hoodie_down_blue': ['shirt_hoodie_down_blue', 'shirt_hoodie_blue']
+  },
+
+  shoes_and_gloves: {
+    'green': ['accessories_christmas_green'],
+    'graveyard': ['accessories_christmas_graveyard'],
+    'red': ['accessories_christmas_red'],
+    'tree': ['accessories_christmas_tree'],
+    'teal': ['accessories_christmas_teal'],
+    'turquoise': ['accessories_christmas_turquoise'],
+    'purple': ['accessories_christmas_purple'],
+    'space': ['accessories_christmas_space'],
+    'orange': ['accessories_christmas_orange'],
+    'blue': ['accessories_christmas_blue'],
+    'yellow': ['accessories_christmas_yellow']
+  },
+
+  short_hair: {
+    'mohawk_purple': ['hair_short_mohawk_purple'],
+    'mohawk_red': ['hair_short_mohawk_red'],
+    'mohawk_pink': ['hair_short_mohawk_pink'],
+    'mohawk_black': ['hair_short_mohawk_black'],
+    'mohawk_yellow': ['hair_short_mohawk_yellow'],
+    'messy_black': ['hair_short_messy_black'],
+    'mohawk_green': ['hair_short_mohawk_green'],
+    'messy_yellow': ['hair_short_messy_yellow'],
+    'mohawk_blue': ['hair_short_mohawk_blue'],
+    'messy_red': ['hair_short_messy_red'],
+    'messy_purple': ['hair_short_messy_purple'],
+    'messy_black_ape': ['hair_short_messy_black_ape'],
+    'messy_yellow_ape': ['hair_short_messy_yellow_ape'],
+    'messy_red_ape': ['hair_short_messy_red_ape'],
+    'messy_purple_ape': ['hair_short_messy_purple_ape']
+  },
+
+  smoke: {
+    'pipe': ['smoke_pipe'],
+    'pipe_brown': ['smoke_pipe_brown'],
+    'cig_white': ['smoke_cig_white', 'smoke'],
+    'cig_black': ['smoke_cig_black', 'smoke']
+  },
+
+  type: {
+    'alien': ['type_alien', 'body', 'heres_my_signature'],
+    'charcoal': ['type_charcoal', 'body', 'heres_my_signature'],
+    'ape': ['type_ape', 'body', 'heres_my_signature'],
+    'plain': ['type_plain', 'body', 'heres_my_signature'],
+    'zombie': ['type_zombie', 'body', 'heres_my_signature'],
+    'metal': ['type_metal', 'body_metal', 'heres_my_signature'],
+    'based': ['type_based_mfer', 'body_mfercoin', 'heres_my_signature']
+  }
+};
 
 const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
   const groupRef = useRef();
   const { scene: threeScene } = useThree();
-  const loadedModels = useRef({});
+  const [modelLoaded, setModelLoaded] = useState(false);
+  const { scene, nodes } = useGLTF(GLB_URL);
 
-  // Handle model loading
-  const handleModelLoad = (traitType, modelScene) => {
-    // Only store currently selected traits
-    if (selectedTraits[traitType]) {
-      loadedModels.current[traitType] = modelScene;
+  useEffect(() => {
+    if (scene) {
+      // Clone the scene to avoid modifying the cached original
+      const clonedScene = scene.clone();
+      groupRef.current.add(clonedScene);
+      setModelLoaded(true);
+
+      // Debug: Log all mesh names in the model
+      console.log('=== DEBUG: MESH NAMES START ===');
+      const allMeshes = [];
+      clonedScene.traverse((obj) => {
+        if (obj.isMesh) {
+          allMeshes.push(obj.name);
+          console.log('Found mesh:', obj.name);
+          if (obj.name.toLowerCase().includes('larva')) {
+            console.log('Found larva mesh:', obj.name);
+          }
+        }
+      });
+      console.log('All mesh names (sorted):', allMeshes.sort());
+      console.log('=== DEBUG: MESH NAMES END ===');
+
+      // Cleanup function
+      return () => {
+        groupRef.current.remove(clonedScene);
+        clonedScene.traverse((obj) => {
+          if (obj.geometry) obj.geometry.dispose();
+          if (obj.material) obj.material.dispose();
+        });
+      };
     }
+  }, [scene]);
+
+  // Helper function to check if a mesh belongs to a category
+  const meshBelongsToCategory = (meshName, category) => {
+    const prefixes = CATEGORY_MESH_PREFIXES[category] || [];
+    return prefixes.some(prefix => meshName.toLowerCase().startsWith(prefix.toLowerCase()));
   };
 
-  // Clear out removed traits
-  useEffect(() => {
-    // Remove any stored models that are no longer selected
-    Object.keys(loadedModels.current).forEach(traitType => {
-      if (!selectedTraits[traitType]) {
-        delete loadedModels.current[traitType];
+  // Debug function to log mesh visibility
+  const logMeshVisibility = () => {
+    const visibleMeshes = [];
+    groupRef.current.traverse((obj) => {
+      if (obj.isMesh && obj.visible) {
+        visibleMeshes.push(obj.name);
       }
     });
-  }, [selectedTraits]);
+    console.log('Visible meshes:', visibleMeshes);
+  };
+
+  function normalizeTraitId(traitType, traitId) {
+    // Removed the normalization for hat_over_headphones so that "larva mfer" stays as "larva mfer"
+    return traitId;
+  }
+
+  // Update visibility of traits when selections change
+  useEffect(() => {
+    if (!modelLoaded) return;
+
+    console.log('Updating traits:', selectedTraits);
+    // Debug log for eyes trait
+    if (selectedTraits.eyes) {
+      console.log('Selected eyes trait ID:', selectedTraits.eyes);
+    }
+
+    // First, hide all meshes
+    groupRef.current.traverse((obj) => {
+      if (obj.isMesh) {
+        obj.visible = false;
+      }
+    });
+
+    // Create a Set of all meshes that should be visible
+    const meshesToShow = new Set();
+
+    // Process each trait category
+    console.log('Starting trait processing...');
+    console.log('All selected traits:', selectedTraits);
+    console.log('Available trait mappings:', Object.keys(TRAIT_MESH_MAPPING));
+    
+    Object.entries(selectedTraits).forEach(([traitType, traitId]) => {
+      const normalizedTraitId = normalizeTraitId(traitType, traitId);
+      if (!normalizedTraitId || !TRAIT_MESH_MAPPING[traitType]) return;
+      
+      let meshNames = TRAIT_MESH_MAPPING[traitType][normalizedTraitId];
+      if (!meshNames) {
+        console.warn(`No mesh mapping found for trait: ${normalizedTraitId} in category ${traitType}`);
+        return;
+      }
+
+      // Handle special case for mouths with different body types
+      if (traitType === 'mouth' && selectedTraits.type) {
+        const bodyType = selectedTraits.type;
+        meshNames = meshNames.map(name => {
+          if (name.startsWith('mouth_')) {
+            return getTypeMouth(name, bodyType);
+          }
+          return name;
+        });
+      }
+
+      console.log(`Processing trait: ${traitType} - ${normalizedTraitId}`, meshNames);
+
+      // Add all mesh names for this trait to the Set
+      meshNames.forEach(meshName => {
+        meshesToShow.add(meshName);
+      });
+    });
+
+    // Show only the meshes in our Set
+    groupRef.current.traverse((obj) => {
+      if (obj.isMesh) {
+        obj.visible = meshesToShow.has(obj.name);
+        if (obj.visible) {
+          console.log(`Showing mesh: ${obj.name}`);
+        }
+      }
+    });
+
+    // Log final visibility state
+    logMeshVisibility();
+  }, [selectedTraits, modelLoaded]);
 
   // Export functionality
   const exportScene = async () => {
-    // Create a new scene for the combined model
-    const combinedScene = new THREE.Scene();
+    if (!modelLoaded) return;
+
+    // Create a new scene for the export
+    const exportScene = new THREE.Scene();
     
-    // Only add currently selected traits to the combined scene
-    Object.entries(selectedTraits).forEach(([traitType, traitId]) => {
-      if (traitId && loadedModels.current[traitType]) {
-        combinedScene.add(loadedModels.current[traitType].clone());
-      }
-    });
+    // Clone the current visible state
+    const clonedGroup = groupRef.current.clone();
+    exportScene.add(clonedGroup);
 
     // Create an exporter
     const exporter = new GLTFExporter();
 
-    // Export the combined scene
     try {
       const gltfData = await new Promise((resolve, reject) => {
         exporter.parse(
-          combinedScene,
+          exportScene,
           (gltf) => resolve(gltf),
           (error) => reject(error),
           { binary: true }
@@ -90,6 +355,12 @@ const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
+
+      // Cleanup
+      exportScene.traverse((obj) => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+      });
     } catch (error) {
       console.error('Export failed:', error);
       throw error;
@@ -103,7 +374,6 @@ const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
 
   return (
     <>
-      {/* Adjusted camera position with slight rotation */}
       <PerspectiveCamera 
         makeDefault 
         position={[-0.3, 1.2, 1.4]} 
@@ -118,20 +388,15 @@ const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
         target={[0, 1.0, 0]}
         enableDamping={true}
         dampingFactor={0.05}
-        // Allow more vertical rotation
         minPolarAngle={Math.PI / 3}
         maxPolarAngle={Math.PI / 1.5}
-        // Allow full horizontal rotation
         minAzimuthAngle={-Math.PI}
         maxAzimuthAngle={Math.PI}
-        // Add rotation speed
         rotateSpeed={0.7}
       />
       
-      {/* Adjusted lighting for better all-around view */}
       <ambientLight intensity={0.3} />
       
-      {/* Main key light - adjusted for more dynamic lighting */}
       <directionalLight 
         position={[2, 2, 2]} 
         intensity={0.8} 
@@ -140,14 +405,12 @@ const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
         shadow-mapSize-height={1024}
       />
       
-      {/* Fill light - adjusted position */}
       <directionalLight 
         position={[-1.5, 1, -1]} 
         intensity={0.4} 
         color="#b4c7ff"
       />
       
-      {/* Rim light for edge definition */}
       <spotLight
         position={[0, 2, -2.5]}
         intensity={0.35}
@@ -156,7 +419,6 @@ const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
         color="#ffffff"
       />
       
-      {/* Ground fill light */}
       <pointLight
         position={[0, 0.5, 1.5]}
         intensity={0.2}
@@ -164,23 +426,14 @@ const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
         color="#b4c7ff"
       />
 
-      {/* Environment lighting */}
       <Environment preset="studio" />
       
-      <group ref={groupRef}>
-        {Object.entries(selectedTraits).map(([traitType, traitId]) => (
-          traitId && (
-            <TraitModel
-              key={`${traitType}-${traitId}`}
-              traitType={traitType}
-              traitId={traitId}
-              onLoad={handleModelLoad}
-            />
-          )
-        ))}
-      </group>
+      <group ref={groupRef} />
     </>
   );
 });
+
+// Preload the GLB file
+useGLTF.preload(GLB_URL);
 
 export default CharacterPreview; 

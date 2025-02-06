@@ -559,9 +559,10 @@ function Creator({ themeColor, setThemeColor }) {
     setSelectedTraits(prev => ({
       ...Object.keys(prev).reduce((acc, key) => ({ ...acc, [key]: '' }), {}),
       type: 'plain',
-      eyes: TRAIT_CATEGORIES.eyes.options[0].id,
-      mouth: TRAIT_CATEGORIES.mouth.options[0].id,
-      background: TRAIT_CATEGORIES.background.options[0].id
+      eyes: 'regular',
+      mouth: 'smile',
+      background: 'blue',
+      headphones: 'white'  // Add default headphones
     }));
   };
 
