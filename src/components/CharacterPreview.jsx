@@ -16,7 +16,7 @@ function TraitModel({ traitType, traitId, onLoad }) {
   const trait = TRAIT_CATEGORIES[traitType]?.options.find(opt => opt.id === traitId);
   if (!trait?.model) return null;
 
-  const { scene } = useGLTF(`/3d-models/${trait.model}`);
+  const { scene } = useGLTF(`/avatar-maker/3d-models/${trait.model}`);
   
   useEffect(() => {
     if (scene && onLoad) {
@@ -38,17 +38,32 @@ const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
 
   // Handle model loading
   const handleModelLoad = (traitType, modelScene) => {
-    loadedModels.current[traitType] = modelScene;
+    // Only store currently selected traits
+    if (selectedTraits[traitType]) {
+      loadedModels.current[traitType] = modelScene;
+    }
   };
+
+  // Clear out removed traits
+  useEffect(() => {
+    // Remove any stored models that are no longer selected
+    Object.keys(loadedModels.current).forEach(traitType => {
+      if (!selectedTraits[traitType]) {
+        delete loadedModels.current[traitType];
+      }
+    });
+  }, [selectedTraits]);
 
   // Export functionality
   const exportScene = async () => {
     // Create a new scene for the combined model
     const combinedScene = new THREE.Scene();
     
-    // Add all loaded models to the combined scene
-    Object.values(loadedModels.current).forEach(modelScene => {
-      combinedScene.add(modelScene.clone());
+    // Only add currently selected traits to the combined scene
+    Object.entries(selectedTraits).forEach(([traitType, traitId]) => {
+      if (traitId && loadedModels.current[traitType]) {
+        combinedScene.add(loadedModels.current[traitType].clone());
+      }
     });
 
     // Create an exporter
