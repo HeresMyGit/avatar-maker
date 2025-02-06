@@ -120,6 +120,17 @@ const ExpandIcon = styled.span`
   margin-left: 4px;
 `;
 
+const TraitInfo = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  opacity: ${props => props.isExpanded ? 1 : 0};
+  height: ${props => props.isExpanded ? 'auto' : '0'};
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+`;
+
 const TraitTitle = styled.h2`
   font-family: 'SartoshiScript';
   font-size: 1.6em;
@@ -266,19 +277,21 @@ const ClearButton = styled.button`
   background: none;
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: rgba(255, 255, 255, 0.5);
-  padding: 8px 16px;
+  padding: 8px;
   border-radius: 8px;
   cursor: pointer;
   font-size: 1.5em;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
   text-transform: none;
   letter-spacing: 0;
   font-weight: 400;
   backdrop-filter: blur(5px);
   flex-shrink: 0;
+  width: 40px;
+  height: 40px;
 
   &:hover {
     color: rgba(255, 255, 255, 0.9);
@@ -288,10 +301,6 @@ const ClearButton = styled.button`
 
   &:active {
     transform: translateY(1px);
-  }
-
-  span {
-    font-size: 1.2em;
   }
 `;
 
@@ -334,7 +343,6 @@ function TraitSelector({ selectedTraits, onTraitChange, themeColor }) {
               <TitleRow>
                 <TraitTitle themeColor={themeColor}>
                   {category.name}
-                  <TraitCount themeColor={themeColor}>{category.options.length}</TraitCount>
                   <ExpandIcon isExpanded={isExpanded}>▼</ExpandIcon>
                 </TraitTitle>
                 {hasSelection && (
@@ -342,10 +350,15 @@ function TraitSelector({ selectedTraits, onTraitChange, themeColor }) {
                     onClick={(e) => handleClearTrait(e, traitType)} 
                     themeColor={themeColor}
                   >
-                    <span>↺</span> Reset
+                    ↺
                   </ClearButton>
                 )}
               </TitleRow>
+              {isExpanded && (
+                <TraitInfo isExpanded={isExpanded}>
+                  <TraitCount themeColor={themeColor}>{category.options.length} options</TraitCount>
+                </TraitInfo>
+              )}
               {!isExpanded && hasSelection && (
                 <SelectedPreview themeColor={themeColor}>
                   {selectedLabel}
