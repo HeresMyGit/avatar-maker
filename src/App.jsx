@@ -1,10 +1,19 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import styled from '@emotion/styled';
 import { Canvas } from '@react-three/fiber';
 import CharacterPreview from './components/CharacterPreview';
 import TraitSelector from './components/TraitSelector';
+import Layout, { NAVIGATION_ITEMS } from './components/Layout';
+import Home from './pages/Home';
+import Customs from './pages/Customs';
+import Based from './pages/Based';
+import Details from './pages/Details';
+import OGMfers from './pages/OGMfers';
 import { TRAIT_CATEGORIES } from './config/traits';
 import { css, keyframes } from '@emotion/react';
+import { useNavigate } from 'react-router-dom';
+import { COLOR_MAP } from './config/colors';
 
 const gradientMove = keyframes`
   0% { background-position: 0% 50%; }
@@ -32,18 +41,32 @@ const getRadialGradient = (props) => css`
 const getPreviewGradient = (props) => css`
   background: radial-gradient(
     circle at center,
-    ${props.themeColor}1A 0%,
-    transparent 60%
+    ${props.themeColor}99 0%,
+    transparent 70%
   );
+  position: relative;
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('/avatar-maker/paper-texture.png');
+    opacity: 0.03;
+    pointer-events: none;
+  }
 `;
 
 const getScrollbarStyles = (props) => css`
   &::-webkit-scrollbar-thumb {
     background: ${props.themeColor}33;
-    border: 1px solid ${props.themeColor}4D;
+    border: 2px solid ${props.themeColor}22;
+    border-radius: 10px;
     
     &:hover {
-      background: ${props.themeColor}4D;
+      background: ${props.themeColor}55;
+      border: 2px solid ${props.themeColor}33;
     }
   }
 `;
@@ -55,25 +78,41 @@ const getTitleGradient = (props) => css`
     ${props.themeColor}DD 50%,
     ${props.themeColor} 100%
   );
+  text-shadow: 2px 2px 0px ${props.themeColor}33;
 `;
 
 const getButtonGradient = (props) => css`
   background: ${
     props.variant === 'secondary' 
-      ? 'rgba(255, 255, 255, 0.1)' 
-      : `linear-gradient(135deg, ${props.themeColor} 0%, ${props.themeColor}DD 100%)`
+      ? 'rgba(255, 255, 255, 0.07)' 
+      : `linear-gradient(135deg, ${props.themeColor}CC 0%, ${props.themeColor}99 100%)`
+  };
+  border: 2px solid ${
+    props.variant === 'secondary'
+      ? 'rgba(255, 255, 255, 0.1)'
+      : `${props.themeColor}33`
   };
 
   &:hover {
     background: ${
       props.variant === 'secondary'
-        ? 'rgba(255, 255, 255, 0.15)'
-        : `linear-gradient(135deg, ${props.themeColor}EE 0%, ${props.themeColor} 100%)`
+        ? 'rgba(255, 255, 255, 0.12)'
+        : `linear-gradient(135deg, ${props.themeColor}EE 0%, ${props.themeColor}BB 100%)`
     };
+    border-color: ${
+      props.variant === 'secondary'
+        ? 'rgba(255, 255, 255, 0.15)'
+        : `${props.themeColor}66`
+    };
+    transform: translateY(-2px);
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 `;
 
-const AppContainer = styled.div`
+const CreatorContainer = styled.div`
   display: flex;
   height: 100vh;
   width: 100vw;
@@ -88,18 +127,9 @@ const AppContainer = styled.div`
     top: 0;
     left: 0;
     right: 0;
-    height: 1px;
-    ${props => getThemeGradient(props)}
-  }
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
     bottom: 0;
-    ${props => getRadialGradient(props)}
+    background: url('/avatar-maker/paper-texture.png');
+    opacity: 0.02;
     pointer-events: none;
   }
 `;
@@ -107,7 +137,7 @@ const AppContainer = styled.div`
 const PreviewSection = styled.div`
   flex: 2;
   position: relative;
-  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
   overflow: hidden;
   ${props => getPreviewGradient(props)}
 `;
@@ -115,24 +145,68 @@ const PreviewSection = styled.div`
 const SelectorSection = styled.div`
   flex: 1;
   padding: 30px;
-  background: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(20px);
   overflow-y: auto;
   min-width: 340px;
   max-width: 400px;
   position: relative;
   z-index: 1;
+  border-left: 1px solid rgba(255, 255, 255, 0.07);
 
   &::-webkit-scrollbar {
-    width: 8px;
+    width: 10px;
   }
 
   &::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 5px;
   }
 
   ${props => getScrollbarStyles(props)}
+`;
+
+const TopBar = styled.div`
+  position: absolute;
+  top: 30px;
+  right: 30px;
+  z-index: 10;
+  display: flex;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(20px);
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+`;
+
+const Button = styled.button`
+  ${props => getButtonGradient(props)}
+  font-family: 'SartoshiScript';
+  color: white;
+  padding: 14px 28px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 1.8em;
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px ${props => props.themeColor}22;
+  text-transform: none;
+  letter-spacing: 0;
+  position: relative;
+  overflow: hidden;
+
+  &:disabled {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.05);
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
 `;
 
 const Title = styled.div`
@@ -148,7 +222,8 @@ const Title = styled.div`
     transform: translateX(-50%);
     width: 60px;
     height: 2px;
-    ${props => getThemeGradient(props)}
+    background: ${props => props.themeColor}33;
+    border-radius: 2px;
   }
 `;
 
@@ -168,52 +243,112 @@ const MainTitle = styled.h1`
 
 const Subtitle = styled.p`
   font-family: 'SartoshiScript';
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.7);
   margin: 8px 0 0 0;
   font-size: 1.6em;
   letter-spacing: 0;
+  text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.2);
 `;
 
-const TopBar = styled.div`
-  position: absolute;
+const fadeIn = keyframes`
+  from { opacity: 0; }
+  to { opacity: 1; }
+`;
+
+const MenuButton = styled.button`
+  position: fixed;
   top: 30px;
-  right: 30px;
-  z-index: 10;
-  display: flex;
-  gap: 12px;
+  left: 30px;
+  z-index: 1000;
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(10px);
-  padding: 12px;
-  border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-`;
-
-const Button = styled.button`
-  ${props => getButtonGradient(props)}
-  font-family: 'SartoshiScript';
-  color: white;
-  border: none;
-  padding: 14px 28px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1.8em;
-  font-weight: 400;
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  text-transform: none;
-  letter-spacing: 0;
-  position: relative;
-  overflow: hidden;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
 
-  &:disabled {
-    background: rgba(255, 255, 255, 0.1);
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
+  &:hover {
+    transform: scale(1.1);
+    background: rgba(0, 0, 0, 0.6);
+  }
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    width: 24px;
+    height: 2px;
+    background: white;
+    transition: all 0.3s ease;
+  }
+
+  &::before {
+    transform: translateY(-6px) ${props => props.isOpen ? 'rotate(45deg) translateY(6px)' : ''};
+  }
+
+  &::after {
+    transform: translateY(6px) ${props => props.isOpen ? 'rotate(-45deg) translateY(-6px)' : ''};
+  }
+`;
+
+const NavigationOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(20px);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: ${props => props.isOpen ? 1 : 0};
+  pointer-events: ${props => props.isOpen ? 'all' : 'none'};
+  transition: opacity 0.3s ease;
+`;
+
+const NavigationContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  animation: ${fadeIn} 0.5s ease forwards;
+`;
+
+const NavLink = styled(Link)`
+  font-family: 'SartoshiScript';
+  font-size: 4em;
+  color: white;
+  text-decoration: none;
+  position: relative;
+  transition: all 0.3s ease;
+  opacity: 0.6;
+  text-align: center;
+
+  &:hover {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    width: ${props => props.active ? '100%' : '0'};
+    height: 2px;
+    background: ${props => props.themeColor};
+    transform: translateX(-50%);
+    transition: all 0.3s ease;
+  }
+
+  &:hover::after {
+    width: 100%;
   }
 `;
 
@@ -382,17 +517,36 @@ const generateRandomTraits = () => {
 
 const getThemeColor = (selectedTraits) => {
   const background = TRAIT_CATEGORIES.background.options.find(opt => opt.id === selectedTraits.background);
-  return background?.color || '#4CAF50'; // Default to green if no background selected
+  return background ? `#${COLOR_MAP[background.id] || '4CAF50'}` : '#4CAF50'; // Default to green if no background selected
 };
 
-function App() {
-  const [selectedTraits, setSelectedTraits] = useState(() => ({
-    ...generateRandomTraits()
-  }));
+function Creator({ themeColor, setThemeColor }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [selectedTraits, setSelectedTraits] = useState(() => {
+    const initialTraits = generateRandomTraits();
+    // Set initial theme color based on the randomly generated background
+    const initialThemeColor = getThemeColor(initialTraits);
+    setThemeColor(initialThemeColor);
+    return initialTraits;
+  });
   const [isExporting, setIsExporting] = useState(false);
   const previewRef = useRef();
 
-  const themeColor = useMemo(() => getThemeColor(selectedTraits), [selectedTraits.background]);
+  // Update theme color when traits change
+  useEffect(() => {
+    const newThemeColor = getThemeColor(selectedTraits);
+    setThemeColor(newThemeColor);
+  }, [selectedTraits.background, setThemeColor]);
+
+  const toggleMenu = () => {
+    setIsMenuOpen(prevState => !prevState);
+  };
+
+  const closeMenu = () => {
+    setIsMenuOpen(false);
+  };
 
   const handleTraitChange = (traitType, value) => {
     setSelectedTraits(prev => ({
@@ -404,11 +558,10 @@ function App() {
   const handleClearAll = () => {
     setSelectedTraits(prev => ({
       ...Object.keys(prev).reduce((acc, key) => ({ ...acc, [key]: '' }), {}),
-      // Keep only the basic traits
       type: 'plain',
       eyes: TRAIT_CATEGORIES.eyes.options[0].id,
       mouth: TRAIT_CATEGORIES.mouth.options[0].id,
-      background: TRAIT_CATEGORIES.background.options[0].id // Set default background
+      background: TRAIT_CATEGORIES.background.options[0].id
     }));
   };
 
@@ -431,7 +584,23 @@ function App() {
   const hasSelectedTraits = Object.values(selectedTraits).some(Boolean);
 
   return (
-    <AppContainer themeColor={themeColor}>
+    <CreatorContainer themeColor={themeColor}>
+      <MenuButton onClick={toggleMenu} isOpen={isMenuOpen} />
+      <NavigationOverlay isOpen={isMenuOpen}>
+        <NavigationContent>
+          {NAVIGATION_ITEMS.map(({ path, label }) => (
+            <NavLink 
+              key={path}
+              to={path} 
+              active={location.pathname === path} 
+              themeColor={themeColor}
+              onClick={closeMenu}
+            >
+              {label}
+            </NavLink>
+          ))}
+        </NavigationContent>
+      </NavigationOverlay>
       <PreviewSection themeColor={themeColor}>
         <TopBar>
           <Button 
@@ -474,7 +643,24 @@ function App() {
           themeColor={themeColor}
         />
       </SelectorSection>
-    </AppContainer>
+    </CreatorContainer>
+  );
+}
+
+function App() {
+  const [themeColor, setThemeColor] = useState('#5cd3ff');
+
+  return (
+    <Router basename="/avatar-maker">
+      <Routes>
+        <Route path="/" element={<Layout themeColor={themeColor}><Home themeColor={themeColor} /></Layout>} />
+        <Route path="/creator" element={<Layout themeColor={themeColor}><Creator themeColor={themeColor} setThemeColor={setThemeColor} /></Layout>} />
+        <Route path="/og" element={<Layout themeColor={themeColor}><OGMfers themeColor={themeColor} /></Layout>} />
+        <Route path="/customs" element={<Layout themeColor={themeColor}><Customs themeColor={themeColor} /></Layout>} />
+        <Route path="/based" element={<Layout themeColor={themeColor}><Based themeColor={themeColor} /></Layout>} />
+        <Route path="/details" element={<Layout themeColor={themeColor}><Details themeColor={themeColor} /></Layout>} />
+      </Routes>
+    </Router>
   );
 }
 

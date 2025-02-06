@@ -1,18 +1,17 @@
 export const TRAIT_CATEGORIES = {
   background: {
-    name: 'Background',
+    name: "Background",
     options: [
-      { id: 'green', label: 'Green', color: '#4CAF50' },
-      { id: 'graveyard', label: 'Graveyard', color: '#6D597A' },
-      { id: 'red', label: 'Red', color: '#F44336' },
-      { id: 'tree', label: 'Tree', color: '#66BB6A' },
-      { id: 'teal', label: 'Teal', color: '#009688' },
-      { id: 'turquoise', label: 'Turquoise', color: '#00BCD4' },
-      { id: 'purple', label: 'Purple', color: '#9C27B0' },
-      { id: 'space', label: 'Space', color: '#3F51B5' },
-      { id: 'orange', label: 'Orange', color: '#FF9800' },
-      { id: 'blue', label: 'Blue', color: '#2196F3' },
-      { id: 'yellow', label: 'Yellow', color: '#FFC107' }
+      { id: "blue", label: "Blue" },
+      { id: "red", label: "Red" },
+      { id: "green", label: "Green" },
+      { id: "yellow", label: "Yellow" },
+      { id: "orange", label: "Orange" },
+      { id: "purple", label: "Purple" },
+      { id: "turquoise", label: "Turquoise" },
+      { id: "tree", label: "Tree" },
+      { id: "space", label: "Space" },
+      { id: "graveyard", label: "Graveyard" }
     ]
   },
   type: {
