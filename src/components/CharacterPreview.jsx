@@ -1,8 +1,9 @@
 import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera, useGLTF, Environment } from '@react-three/drei';
+import { OrbitControls, PerspectiveCamera, useGLTF, Environment, useAnimations } from '@react-three/drei';
 import { TRAIT_CATEGORIES } from '../config/traits';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import * as THREE from 'three';
 
 const GLB_URL = "https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/builders/mfermashup.glb";
@@ -196,40 +197,124 @@ const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
   const groupRef = useRef();
   const { scene: threeScene } = useThree();
   const [modelLoaded, setModelLoaded] = useState(false);
-  const { scene, nodes } = useGLTF(GLB_URL);
+  const { scene, nodes, animations } = useGLTF(GLB_URL);
+  const animationRef = useRef();
+  const sceneRootRef = useRef();
 
+  // Set up model with SkeletonUtils
   useEffect(() => {
-    if (scene) {
-      // Clone the scene to avoid modifying the cached original
-      const clonedScene = scene.clone();
-      groupRef.current.add(clonedScene);
-      setModelLoaded(true);
-
-      // Debug: Log all mesh names in the model
-      console.log('=== DEBUG: MESH NAMES START ===');
-      const allMeshes = [];
-      clonedScene.traverse((obj) => {
-        if (obj.isMesh) {
-          allMeshes.push(obj.name);
-          console.log('Found mesh:', obj.name);
-          if (obj.name.toLowerCase().includes('larva')) {
-            console.log('Found larva mesh:', obj.name);
-          }
-        }
-      });
-      console.log('All mesh names (sorted):', allMeshes.sort());
-      console.log('=== DEBUG: MESH NAMES END ===');
-
-      // Cleanup function
-      return () => {
-        groupRef.current.remove(clonedScene);
-        clonedScene.traverse((obj) => {
-          if (obj.geometry) obj.geometry.dispose();
-          if (obj.material) obj.material.dispose();
-        });
-      };
+    // Clear existing scene first
+    if (groupRef.current) {
+      while (groupRef.current.children.length > 0) {
+        const child = groupRef.current.children[0];
+        groupRef.current.remove(child);
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+      }
     }
-  }, [scene]);
+
+    if (!scene) return;
+
+    // Clone the entire scene using SkeletonUtils
+    const clonedScene = SkeletonUtils.clone(scene);
+    sceneRootRef.current = clonedScene;
+
+    // Set all meshes to invisible initially
+    clonedScene.traverse((obj) => {
+      if (obj.isMesh) {
+        obj.visible = false;
+      }
+    });
+
+    // Add cloned scene to group
+    groupRef.current.add(clonedScene);
+
+    // Set up animation
+    if (animations && animations.length > 0) {
+      const mixer = new THREE.AnimationMixer(clonedScene);
+      const clip = animations[0].clone();
+      const action = mixer.clipAction(clip);
+      action.play();
+      animationRef.current = { mixer, action };
+    }
+
+    setModelLoaded(true);
+
+    // Cleanup
+    return () => {
+      if (animationRef.current) {
+        animationRef.current.action.stop();
+        animationRef.current.mixer.stopAllAction();
+        animationRef.current.mixer.uncacheRoot(clonedScene);
+      }
+      
+      if (groupRef.current) {
+        while (groupRef.current.children.length > 0) {
+          const child = groupRef.current.children[0];
+          groupRef.current.remove(child);
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) child.material.dispose();
+        }
+      }
+    };
+  }, [scene, animations]);
+
+  // Update visibility of traits when selections change
+  useEffect(() => {
+    if (!modelLoaded || !sceneRootRef.current) return;
+
+    // First, hide all meshes
+    sceneRootRef.current.traverse((obj) => {
+      if (obj.isMesh) {
+        obj.visible = false;
+      }
+    });
+
+    // Create a Set of all meshes that should be visible
+    const meshesToShow = new Set();
+
+    // Process each trait category
+    Object.entries(selectedTraits).forEach(([traitType, traitId]) => {
+      const normalizedTraitId = normalizeTraitId(traitType, traitId);
+      if (!normalizedTraitId || !TRAIT_MESH_MAPPING[traitType]) return;
+      
+      let meshNames = TRAIT_MESH_MAPPING[traitType][normalizedTraitId];
+      if (!meshNames) {
+        console.warn(`No mesh mapping found for trait: ${normalizedTraitId} in category ${traitType}`);
+        return;
+      }
+
+      // Handle special case for mouths with different body types
+      if (traitType === 'mouth' && selectedTraits.type) {
+        const bodyType = selectedTraits.type;
+        meshNames = meshNames.map(name => {
+          if (name.startsWith('mouth_')) {
+            return getTypeMouth(name, bodyType);
+          }
+          return name;
+        });
+      }
+
+      // Add all mesh names for this trait to the Set
+      meshNames.forEach(meshName => {
+        meshesToShow.add(meshName);
+      });
+    });
+
+    // Show only the meshes in our Set
+    sceneRootRef.current.traverse((obj) => {
+      if (obj.isMesh) {
+        obj.visible = meshesToShow.has(obj.name);
+      }
+    });
+  }, [selectedTraits, modelLoaded]);
+
+  // Update animation
+  useFrame((state, delta) => {
+    if (animationRef.current) {
+      animationRef.current.mixer.update(delta);
+    }
+  });
 
   // Helper function to check if a mesh belongs to a category
   const meshBelongsToCategory = (meshName, category) => {
@@ -253,74 +338,6 @@ const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
     return traitId;
   }
 
-  // Update visibility of traits when selections change
-  useEffect(() => {
-    if (!modelLoaded) return;
-
-    console.log('Updating traits:', selectedTraits);
-    // Debug log for eyes trait
-    if (selectedTraits.eyes) {
-      console.log('Selected eyes trait ID:', selectedTraits.eyes);
-    }
-
-    // First, hide all meshes
-    groupRef.current.traverse((obj) => {
-      if (obj.isMesh) {
-        obj.visible = false;
-      }
-    });
-
-    // Create a Set of all meshes that should be visible
-    const meshesToShow = new Set();
-
-    // Process each trait category
-    console.log('Starting trait processing...');
-    console.log('All selected traits:', selectedTraits);
-    console.log('Available trait mappings:', Object.keys(TRAIT_MESH_MAPPING));
-    
-    Object.entries(selectedTraits).forEach(([traitType, traitId]) => {
-      const normalizedTraitId = normalizeTraitId(traitType, traitId);
-      if (!normalizedTraitId || !TRAIT_MESH_MAPPING[traitType]) return;
-      
-      let meshNames = TRAIT_MESH_MAPPING[traitType][normalizedTraitId];
-      if (!meshNames) {
-        console.warn(`No mesh mapping found for trait: ${normalizedTraitId} in category ${traitType}`);
-        return;
-      }
-
-      // Handle special case for mouths with different body types
-      if (traitType === 'mouth' && selectedTraits.type) {
-        const bodyType = selectedTraits.type;
-        meshNames = meshNames.map(name => {
-          if (name.startsWith('mouth_')) {
-            return getTypeMouth(name, bodyType);
-          }
-          return name;
-        });
-      }
-
-      console.log(`Processing trait: ${traitType} - ${normalizedTraitId}`, meshNames);
-
-      // Add all mesh names for this trait to the Set
-      meshNames.forEach(meshName => {
-        meshesToShow.add(meshName);
-      });
-    });
-
-    // Show only the meshes in our Set
-    groupRef.current.traverse((obj) => {
-      if (obj.isMesh) {
-        obj.visible = meshesToShow.has(obj.name);
-        if (obj.visible) {
-          console.log(`Showing mesh: ${obj.name}`);
-        }
-      }
-    });
-
-    // Log final visibility state
-    logMeshVisibility();
-  }, [selectedTraits, modelLoaded]);
-
   // Export functionality
   const exportScene = async () => {
     if (!modelLoaded) return;
@@ -328,12 +345,22 @@ const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
     // Create a new scene for the export
     const exportScene = new THREE.Scene();
     
-    // Clone the current visible state
-    const clonedGroup = groupRef.current.clone();
-    exportScene.add(clonedGroup);
+    // Clone the current state using SkeletonUtils
+    const clonedScene = SkeletonUtils.clone(sceneRootRef.current);
+    exportScene.add(clonedScene);
 
-    // Create an exporter
+    // Clone animations
+    const exportAnimations = animations.map(anim => anim.clone());
+
+    // Create an exporter with specific options
     const exporter = new GLTFExporter();
+    const options = {
+      binary: true,
+      animations: exportAnimations,
+      includeCustomExtensions: true,
+      embedImages: true,
+      onlyVisible: true
+    };
 
     try {
       const gltfData = await new Promise((resolve, reject) => {
@@ -341,7 +368,7 @@ const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
           exportScene,
           (gltf) => resolve(gltf),
           (error) => reject(error),
-          { binary: true }
+          options
         );
       });
 
