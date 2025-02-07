@@ -56,7 +56,7 @@ const Sidebar = styled.div`
   height: calc(100vh - 4rem);
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1rem;
   padding: 2rem;
   background: rgba(0, 0, 0, 0.2);
   border-radius: 24px;
@@ -142,8 +142,8 @@ const Button = styled.button`
 const MarketplaceButtons = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  margin-top: auto;
+  gap: 0.5rem;
+  margin-top: 1rem;
 `;
 
 const MarketplaceButton = styled.a`
@@ -380,8 +380,6 @@ const MferGallery = ({
           </Button>
         </SearchContainer>
 
-        <SidebarDivider themeColor={themeColor} />
-        
         <TraitSelector
           themeColor={themeColor}
           selectedTraits={selectedTraits}
@@ -389,23 +387,20 @@ const MferGallery = ({
         />
 
         {marketplaceButtons.length > 0 && (
-          <>
-            <SidebarDivider themeColor={themeColor} />
-            <MarketplaceButtons>
-              {marketplaceButtons.map((button, index) => (
-                <MarketplaceButton
-                  key={index}
-                  href={button.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  themeColor={themeColor}
-                  disabled={button.disabled}
-                >
-                  {button.label}
-                </MarketplaceButton>
-              ))}
-            </MarketplaceButtons>
-          </>
+          <MarketplaceButtons>
+            {marketplaceButtons.map((button, index) => (
+              <MarketplaceButton
+                key={index}
+                href={button.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                themeColor={themeColor}
+                disabled={button.disabled}
+              >
+                {button.label}
+              </MarketplaceButton>
+            ))}
+          </MarketplaceButtons>
         )}
       </Sidebar>
 
