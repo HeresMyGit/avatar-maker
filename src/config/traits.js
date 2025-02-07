@@ -30,7 +30,6 @@ export const TRAIT_CATEGORIES = {
     name: 'Eyes',
     options: [
       { id: 'regular', label: 'Regular eyes', model: 'regular eyes.glb' },
-      { id: 'zombie', label: 'Zombie eyes', model: 'zombie eyes.glb' },
       { id: 'vr', label: 'VR', model: 'vr.glb' },
       { id: 'shades', label: 'Shades', model: 'shades.glb' },
       { id: 'purple_shades', label: 'Purple shades', model: 'purple shades.glb' },
@@ -127,11 +126,7 @@ export const TRAIT_CATEGORIES = {
       { id: 'messy_black', label: 'Black Messy', model: 'messy black.glb' },
       { id: 'messy_yellow', label: 'Yellow Messy', model: 'messy yellow.glb' },
       { id: 'messy_red', label: 'Red Messy', model: 'messy red.glb' },
-      { id: 'messy_purple', label: 'Purple Messy', model: 'messy purple.glb' },
-      { id: 'messy_black_ape', label: 'Black Ape Messy', model: 'messy black ape.glb' },
-      { id: 'messy_yellow_ape', label: 'Yellow Ape Messy', model: 'messy yellow ape.glb' },
-      { id: 'messy_red_ape', label: 'Red Ape Messy', model: 'messy red ape.glb' },
-      { id: 'messy_purple_ape', label: 'Purple Ape Messy', model: 'messy purple ape.glb' }
+      { id: 'messy_purple', label: 'Purple Messy', model: 'messy purple.glb' }
     ]
   },
   long_hair: {

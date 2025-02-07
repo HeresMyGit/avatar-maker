@@ -359,9 +359,9 @@ const getRandomItem = (array) => {
 };
 
 // Apply trait selection rules in the exact order specified
-const applyTraitRules = (traits) => {
+const applyTraitRules = (traits, isRandomGeneration = false) => {
   // Rule 1: Conflict Between Two Hat Categories
-  if (traits.hat_over_headphones && traits.hat_under_headphones) {
+  if (isRandomGeneration && traits.hat_over_headphones && traits.hat_under_headphones) {
     const hatOver = traits.hat_over_headphones;
     const hatUnder = traits.hat_under_headphones;
     const isHoodieOver = hatOver.includes('hoodie');
@@ -373,7 +373,7 @@ const applyTraitRules = (traits) => {
   }
 
   // Rule 2: Incompatibility of Hair Lengths
-  if (traits.short_hair && traits.long_hair) {
+  if (isRandomGeneration && traits.short_hair && traits.long_hair) {
     Math.random() > 0.5 ? delete traits.short_hair : delete traits.long_hair;
   }
 
@@ -382,7 +382,7 @@ const applyTraitRules = (traits) => {
   const hasShirt = traits.shirt;
   const hasChain = traits.chain;
 
-  if ((hasShirt || hasHoodieUp) && hasChain) {
+  if (isRandomGeneration && (hasShirt || hasHoodieUp) && hasChain) {
     if (Math.random() > 0.5) {
       delete traits.chain;
     } else {
@@ -392,7 +392,7 @@ const applyTraitRules = (traits) => {
   }
 
   // Rule 4: Conflict Between Shirt and Hoodie
-  if (hasShirt && hasHoodieUp) {
+  if (isRandomGeneration && hasShirt && hasHoodieUp) {
     Math.random() > 0.5 ? delete traits.hat_over_headphones : delete traits.shirt;
   }
 
@@ -411,7 +411,7 @@ const applyTraitRules = (traits) => {
   const hasMessy = traits.short_hair && messyVariants.some(variant => traits.short_hair === variant);
 
   // Any headwear (except hoodies) conflicts with mohawks and messy hair
-  if (traits.hat_over_headphones || traits.hat_under_headphones) {
+  if (isRandomGeneration && (traits.hat_over_headphones || traits.hat_under_headphones)) {
     const headwearId = traits.hat_over_headphones || traits.hat_under_headphones;
     const isHoodie = headwearId.includes('hoodie');
     
@@ -430,26 +430,32 @@ const applyTraitRules = (traits) => {
   const topHeadwear = ['top', 'pilot', 'cowboy'];
   const hasTopHeadwear = traits.hat_over_headphones && topHeadwear.some(hw => traits.hat_over_headphones === hw);
   
-  if (hasTopHeadwear) {
+  if (isRandomGeneration && hasTopHeadwear) {
     delete traits.short_hair;
     delete traits.long_hair;
   }
 
   // Rule 7: Hoodie Versus Long Hair Conflict
-  if (hasHoodieUp) {
+  if (isRandomGeneration && hasHoodieUp) {
     delete traits.long_hair;
     delete traits.short_hair;
   }
 
-  // Rules 8-13: Type-specific eye rules
+  // Rules 8-13: Type-specific eye rules - ALWAYS apply these regardless of random generation
   // Rule 8: Zombie Type – Adjusting Eye Trait
-  if (traits.type === 'zombie' && ['regular', 'red'].includes(traits.eyes)) {
-    traits.eyes = 'zombie';
+  if (traits.type === 'zombie') {
+    // If zombie type and regular/red eyes, force zombie eyes
+    if (['regular', 'red'].includes(traits.eyes)) {
+      traits.eyes = 'zombie';
+    }
+  } else if (traits.eyes === 'zombie') {
+    // If not zombie type but has zombie eyes, convert to regular
+    traits.eyes = 'regular';
   }
 
   // Rule 9: Non-Zombie Type – Correcting Erroneous Zombie Eyes
   if (traits.type !== 'zombie' && traits.eyes === 'zombie') {
-    traits.eyes = 'red';
+    traits.eyes = 'regular';
   }
 
   // Rule 10: Alien Type – Adjusting Eye Trait
@@ -457,9 +463,19 @@ const applyTraitRules = (traits) => {
     traits.eyes = 'alien';
   }
 
-  // Rule 11: Ape Type – Removing Long Hair
+  // Rule 11: Ape Type – Converting Messy Hair
   if (traits.type === 'ape') {
-    delete traits.long_hair;
+    // Convert messy hair to ape versions
+    if (traits.short_hair && traits.short_hair.startsWith('messy_') && !traits.short_hair.includes('_ape')) {
+      const color = traits.short_hair.replace('messy_', '');
+      traits.short_hair = `messy_${color}_ape`;
+    }
+  } else {
+    // Convert ape messy hair back to regular versions when not ape type
+    if (traits.short_hair && traits.short_hair.includes('_ape')) {
+      const color = traits.short_hair.replace('messy_', '').replace('_ape', '');
+      traits.short_hair = `messy_${color}`;
+    }
   }
 
   // Rule 12: Based $mfer Type – Adjusting Eye Trait
@@ -474,12 +490,12 @@ const applyTraitRules = (traits) => {
 
   // Rule 14: Long Hair (Curly) Incompatible with Square Headphones
   const squareHeadphones = ['black_square', 'blue_square', 'gold_square'];
-  if (traits.long_hair === 'long_curly' && squareHeadphones.includes(traits.headphones)) {
+  if (isRandomGeneration && traits.long_hair === 'long_curly' && squareHeadphones.includes(traits.headphones)) {
     delete traits.long_hair;
   }
 
   // Rule 15: Pilot Helmet Incompatible with Square Headphones
-  if (traits.hat_over_headphones === 'pilot' && squareHeadphones.includes(traits.headphones)) {
+  if (isRandomGeneration && traits.hat_over_headphones === 'pilot' && squareHeadphones.includes(traits.headphones)) {
     delete traits.hat_over_headphones;
   }
 
@@ -497,7 +513,10 @@ const generateRandomTraits = () => {
   const traits = {
     background: getRandomItem(TRAIT_CATEGORIES.background.options).id,
     type: getRandomItem(TRAIT_CATEGORIES.type.options).id,
-    eyes: getRandomItem(TRAIT_CATEGORIES.eyes.options).id,
+    // Filter out special eye types for random selection
+    eyes: getRandomItem(TRAIT_CATEGORIES.eyes.options.filter(eye => 
+      !['metal', 'mfercoin', 'zombie', 'alien'].includes(eye.id)
+    )).id,
     mouth: getRandomItem(TRAIT_CATEGORIES.mouth.options).id,
     headphones: getRandomItem(TRAIT_CATEGORIES.headphones.options).id
   };
@@ -512,8 +531,8 @@ const generateRandomTraits = () => {
     }
   });
 
-  // Apply rules to ensure valid combinations
-  return applyTraitRules(traits);
+  // Apply rules to ensure valid combinations, with isRandomGeneration = true
+  return applyTraitRules(traits, true);
 };
 
 const getThemeColor = (selectedTraits) => {
@@ -533,18 +552,42 @@ function Creator({ themeColor, setThemeColor }) {
   });
   const [isExporting, setIsExporting] = useState(false);
   const previewRef = useRef();
+  const [isThemeChanging, setIsThemeChanging] = useState(false);
 
   // Update theme color when traits change
   useEffect(() => {
-    const newThemeColor = getThemeColor(selectedTraits);
-    setThemeColor(newThemeColor);
-  }, [selectedTraits.background, setThemeColor]);
+    if (!isThemeChanging) {
+      const newThemeColor = getThemeColor(selectedTraits);
+      setThemeColor(newThemeColor);
+    }
+  }, [selectedTraits.background, setThemeColor, isThemeChanging]);
+
+  // Update background trait when theme color changes
+  useEffect(() => {
+    // Find the background color that matches the theme color
+    const colorEntry = Object.entries(COLOR_MAP).find(([_, color]) => `#${color}` === themeColor);
+    if (colorEntry) {
+      setIsThemeChanging(true);
+      setSelectedTraits(prev => {
+        const newTraits = {
+          ...prev,
+          background: colorEntry[0]
+        };
+        return applyTraitRules(newTraits, false);
+      });
+      setIsThemeChanging(false);
+    }
+  }, [themeColor]);
 
   const handleTraitChange = (traitType, value) => {
-    setSelectedTraits(prev => ({
-      ...prev,
-      [traitType]: value
-    }));
+    setSelectedTraits(prev => {
+      const newTraits = {
+        ...prev,
+        [traitType]: value
+      };
+      // Apply rules with isRandomGeneration = false for manual changes
+      return applyTraitRules(newTraits, false);
+    });
   };
 
   const handleClearAll = () => {
@@ -606,6 +649,7 @@ function Creator({ themeColor, setThemeColor }) {
           <CharacterPreview 
             ref={previewRef}
             selectedTraits={selectedTraits} 
+            themeColor={themeColor}
           />
         </Canvas>
       </PreviewSection>

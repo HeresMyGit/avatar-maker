@@ -38,15 +38,19 @@ const CategoryTitle = styled.h3`
   color: white;
   font-weight: 400;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
   opacity: ${props => props.hasSelection ? '1' : '0.7'};
+`;
 
-  &::after {
-    content: '${props => props.hasSelection ? '✓' : ''}';
-    font-size: 0.8em;
-    color: ${props => props.themeColor};
-  }
+const SelectedTrait = styled.span`
+  font-size: 0.7em;
+  opacity: 0.7;
+  font-family: system-ui;
+  color: ${props => props.themeColor};
+  display: block;
+  margin-top: 2px;
 `;
 
 const ExpandIcon = styled.span`
@@ -127,48 +131,60 @@ function TraitSelector({ selectedTraits, onTraitChange, themeColor }) {
     }));
   };
 
-  // Auto-expand categories with selections
-  const isExpanded = (category) => {
-    return expandedCategories[category] || selectedTraits[category];
+  const getSelectedTraitLabel = (category, traitId) => {
+    if (!traitId) return null;
+    const option = TRAIT_CATEGORIES[category].options.find(opt => opt.id === traitId);
+    return option ? option.label : null;
   };
 
   return (
     <Container>
-      {Object.entries(TRAIT_CATEGORIES).map(([category, { name, options }]) => (
-        <CategoryContainer key={category}>
-          <CategoryHeader 
-            isExpanded={isExpanded(category)}
-            onClick={() => toggleCategory(category)}
-          >
-            <CategoryTitle 
-              hasSelection={selectedTraits[category]}
-              themeColor={themeColor}
+      {Object.entries(TRAIT_CATEGORIES).map(([category, { name, options }]) => {
+        const isExpanded = expandedCategories[category];
+        const selectedTraitId = selectedTraits[category];
+        const selectedLabel = getSelectedTraitLabel(category, selectedTraitId);
+
+        return (
+          <CategoryContainer key={category}>
+            <CategoryHeader 
+              isExpanded={isExpanded}
+              onClick={() => toggleCategory(category)}
             >
-              {name}
-            </CategoryTitle>
-            <HeaderControls>
-              {selectedTraits[category] && (
-                <ClearButton onClick={(e) => handleClearCategory(e, category)}>
-                  Clear
-                </ClearButton>
-              )}
-              <ExpandIcon isExpanded={isExpanded(category)}>▼</ExpandIcon>
-            </HeaderControls>
-          </CategoryHeader>
-          <OptionsGrid isExpanded={isExpanded(category)}>
-            {options.map((option) => (
-              <OptionButton
-                key={option.id}
-                isSelected={selectedTraits[category] === option.id}
-                onClick={() => onTraitChange(category, option.id)}
+              <CategoryTitle 
+                hasSelection={selectedTraitId}
                 themeColor={themeColor}
               >
-                {option.label}
-              </OptionButton>
-            ))}
-          </OptionsGrid>
-        </CategoryContainer>
-      ))}
+                {name}
+                {!isExpanded && selectedLabel && (
+                  <SelectedTrait themeColor={themeColor}>
+                    {selectedLabel}
+                  </SelectedTrait>
+                )}
+              </CategoryTitle>
+              <HeaderControls>
+                {selectedTraitId && (
+                  <ClearButton onClick={(e) => handleClearCategory(e, category)}>
+                    Clear
+                  </ClearButton>
+                )}
+                <ExpandIcon isExpanded={isExpanded}>▼</ExpandIcon>
+              </HeaderControls>
+            </CategoryHeader>
+            <OptionsGrid isExpanded={isExpanded}>
+              {options.map((option) => (
+                <OptionButton
+                  key={option.id}
+                  isSelected={selectedTraits[category] === option.id}
+                  onClick={() => onTraitChange(category, option.id)}
+                  themeColor={themeColor}
+                >
+                  {option.label}
+                </OptionButton>
+              ))}
+            </OptionsGrid>
+          </CategoryContainer>
+        );
+      })}
     </Container>
   );
 }

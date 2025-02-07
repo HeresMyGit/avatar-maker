@@ -11,8 +11,28 @@ const GLB_URL = "https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/build
 // Helper function to get type-specific mouth
 const getTypeMouth = (mouthType, bodyType) => {
   if (bodyType === 'metal') return `${mouthType}_metal`;
-  if (bodyType === 'based_mfer') return `${mouthType}_mfercoin`;
+  if (bodyType === 'based') return `${mouthType}_mfercoin`;
   return mouthType;
+};
+
+// Helper function to get type-specific eyes
+const getTypeEyes = (eyesType, bodyType) => {
+  // Base eyeball types that can be manually selected (removed zombie)
+  const baseEyeTypes = ['eyes_normal', 'eyes_metal', 'eyes_mfercoin', 'eyes_alien', 'eyes_red'];
+  
+  // If the selected eye type is a base type, use it directly
+  if (baseEyeTypes.includes(eyesType)) {
+    return eyesType;
+  }
+  
+  // For accessories (glasses, etc), use the character type's default eyes
+  const defaultEyes = bodyType === 'metal' ? 'eyes_metal' :
+                     bodyType === 'based' ? 'eyes_mfercoin' :
+                     bodyType === 'zombie' ? 'eyes_zombie' :
+                     bodyType === 'alien' ? 'eyes_alien' :
+                     'eyes_normal';
+  
+  return defaultEyes;
 };
 
 // Mapping of trait categories and their IDs to required mesh names
@@ -50,7 +70,6 @@ const TRAIT_MESH_MAPPING = {
     '3d': ['eyes_normal', 'eyes_glases_3d', 'eyes_glasses_3d_lenses', 'eyes_glases_3d_rim'],
     'eye_mask': ['eyes_normal', 'eyes_eye_mask'],
     'vr': ['eyes_normal', 'eyes_vr', 'eyes_vr_lense'],
-    'zombie': ['eyes_zombie'],
     'shades': ['eyes_normal', 'eyes_glasses', 'eyes_glasses_shades'],
     'matrix': ['eyes_normal', 'eyes_glasses', 'eyes_glasses_shades_matrix'],
     'trippy': ['eyes_normal', 'eyes_glasses', 'eyes_glasses_shades_s34n'],
@@ -59,6 +78,7 @@ const TRAIT_MESH_MAPPING = {
     'mfercoin': ['eyes_mfercoin'],
     'red': ['eyes_red'],
     'alien': ['eyes_alien'],
+    'zombie': ['eyes_zombie'],
     'eyepatch': ['eyes_normal', 'eyes_eye_patch']
   },
 
@@ -169,6 +189,7 @@ const TRAIT_MESH_MAPPING = {
     'mohawk_blue': ['hair_short_mohawk_blue'],
     'messy_red': ['hair_short_messy_red'],
     'messy_purple': ['hair_short_messy_purple'],
+    // Hidden ape versions (only used by trait rules)
     'messy_black_ape': ['hair_short_messy_black_ape'],
     'messy_yellow_ape': ['hair_short_messy_yellow_ape'],
     'messy_red_ape': ['hair_short_messy_red_ape'],
@@ -193,7 +214,7 @@ const TRAIT_MESH_MAPPING = {
   }
 };
 
-const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
+const CharacterPreview = forwardRef(({ selectedTraits, themeColor }, ref) => {
   const groupRef = useRef();
   const { scene: threeScene } = useThree();
   const [modelLoaded, setModelLoaded] = useState(false);
@@ -285,13 +306,41 @@ const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
       }
 
       // Handle special case for mouths with different body types
-      if (traitType === 'mouth' && selectedTraits.type) {
+      if (traitType === 'mouth') {
         const bodyType = selectedTraits.type;
         meshNames = meshNames.map(name => {
           if (name.startsWith('mouth_')) {
             return getTypeMouth(name, bodyType);
           }
           return name;
+        });
+      }
+
+      // Handle special case for eyes with different body types
+      if (traitType === 'eyes') {
+        const bodyType = selectedTraits.type;
+        const originalMeshes = [...meshNames];
+        meshNames = [];
+
+        // Get the selected eye type from TRAIT_CATEGORIES if available
+        const selectedEyeType = normalizedTraitId ? `eyes_${normalizedTraitId}` : 'eyes_normal';
+        
+        // First, add the base eyeball mesh for the character type or selected type
+        const baseEyeType = getTypeEyes(selectedEyeType, bodyType);
+        // Look up the base eye meshes using the correct mapping key
+        const baseEyeMeshes = [baseEyeType];
+        meshNames.push(...baseEyeMeshes);
+
+        // Then add any additional eye accessories (glasses, etc)
+        originalMeshes.forEach(name => {
+          if (!name.includes('eyes_normal') && 
+              !name.includes('eyes_metal') && 
+              !name.includes('eyes_mfercoin') && 
+              !name.includes('eyes_zombie') && 
+              !name.includes('eyes_alien') && 
+              !name.includes('eyes_red')) {
+            meshNames.push(name);
+          }
         });
       }
 
@@ -347,7 +396,48 @@ const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
     
     // Clone the current state using SkeletonUtils
     const clonedScene = SkeletonUtils.clone(sceneRootRef.current);
-    exportScene.add(clonedScene);
+    
+    // List of objects to remove (both invisible meshes and unwanted objects)
+    const objectsToRemove = [];
+    
+    // First pass: mark objects for removal and calculate bounds
+    const box = new THREE.Box3();
+    clonedScene.traverse((obj) => {
+      // Remove invisible meshes
+      if (obj.isMesh && !obj.visible) {
+        objectsToRemove.push(obj);
+      }
+      // Remove unwanted objects (1/1s and other non-mesh objects)
+      // We keep only: meshes, bones, skeletons, and specific required objects
+      if (!obj.isMesh && !obj.isBone && !obj.isSkinnedMesh && !obj.isSkeletonHelper &&
+          obj.name && ['bloom', 'creyzie', 'jungle_bay', 'jungle_bay_head', 'larva_mfer', 
+                      'megapurr', 'megapurr_head', 'minnie', 'minnie_head', 'noun', 
+                      'oncyber', 'oncyber_head'].includes(obj.name)) {
+        objectsToRemove.push(obj);
+      }
+
+      // Include object in bounds calculation if it's a mesh or bone
+      if (obj.isMesh || obj.isBone) {
+        box.expandByObject(obj);
+      }
+    });
+
+    // Second pass: remove marked objects
+    objectsToRemove.forEach((obj) => {
+      if (obj.parent) {
+        obj.parent.remove(obj);
+      }
+    });
+
+    // Calculate the center of the model
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+
+    // Create a container to offset the model
+    const container = new THREE.Group();
+    container.position.set(-center.x, -center.y, -center.z);
+    container.add(clonedScene);
+    exportScene.add(container);
 
     // Clone animations
     const exportAnimations = animations.map(anim => anim.clone());
@@ -380,10 +470,14 @@ const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
       link.download = 'mfer-character.glb';
       document.body.appendChild(link);
       link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      
+      // Wait a moment before cleanup to ensure download starts
+      setTimeout(() => {
+        link.remove();
+        URL.revokeObjectURL(url);
+      }, 100);
 
-      // Cleanup
+      // Cleanup scene
       exportScene.traverse((obj) => {
         if (obj.geometry) obj.geometry.dispose();
         if (obj.material) obj.material.dispose();
@@ -403,16 +497,16 @@ const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
     <>
       <PerspectiveCamera 
         makeDefault 
-        position={[-0.3, 1.2, 1.4]} 
+        position={[-0.5, 1.2, 2.0]} 
         fov={35}
       />
       
       <OrbitControls 
         enableZoom={true} 
         enablePan={true}
-        minDistance={1.0}
-        maxDistance={2.5}
-        target={[0, 1.0, 0]}
+        minDistance={1.5}
+        maxDistance={3.0}
+        target={[0, 0.9, 0]}
         enableDamping={true}
         dampingFactor={0.05}
         minPolarAngle={Math.PI / 3}
@@ -451,6 +545,16 @@ const CharacterPreview = forwardRef(({ selectedTraits }, ref) => {
         intensity={0.2}
         distance={3}
         color="#b4c7ff"
+      />
+
+      {/* Add backlight matching theme color */}
+      <spotLight
+        position={[0, 2.0, -1.5]}
+        intensity={1.5}
+        angle={Math.PI / 3}
+        penumbra={0.8}
+        distance={5}
+        color={themeColor}
       />
 
       <Environment preset="studio" />
