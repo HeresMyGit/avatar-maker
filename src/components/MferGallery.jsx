@@ -2,6 +2,7 @@ import { useState } from 'react';
 import styled from '@emotion/styled';
 import { keyframes } from '@emotion/react';
 import { COLOR_MAP } from '../config/colors';
+import TraitSelector from './TraitSelector';
 
 const float = keyframes`
   0% { transform: translateY(0px) rotate(0deg); }
@@ -329,6 +330,12 @@ const LoadingText = styled.p`
   margin: 2rem 0;
 `;
 
+const SidebarDivider = styled.div`
+  height: 1px;
+  background: ${props => props.themeColor}22;
+  margin: 1rem 0;
+`;
+
 const MferGallery = ({ 
   title,
   themeColor,
@@ -340,9 +347,11 @@ const MferGallery = ({
   searchPlaceholder,
   type,
   featuredModels = [],
-  marketplaceButtons = []
+  marketplaceButtons = [],
+  selectedTraits,
+  onTraitChange
 }) => {
-  const [gridSize, setGridSize] = useState(250); // Default size
+  const [gridSize, setGridSize] = useState(250);
 
   const handleDownload = (url, filename) => {
     const link = document.createElement('a');
@@ -371,21 +380,32 @@ const MferGallery = ({
           </Button>
         </SearchContainer>
 
+        <SidebarDivider themeColor={themeColor} />
+        
+        <TraitSelector
+          themeColor={themeColor}
+          selectedTraits={selectedTraits}
+          onTraitChange={onTraitChange}
+        />
+
         {marketplaceButtons.length > 0 && (
-          <MarketplaceButtons>
-            {marketplaceButtons.map((button, index) => (
-              <MarketplaceButton
-                key={index}
-                href={button.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                themeColor={themeColor}
-                disabled={button.disabled}
-              >
-                {button.label}
-              </MarketplaceButton>
-            ))}
-          </MarketplaceButtons>
+          <>
+            <SidebarDivider themeColor={themeColor} />
+            <MarketplaceButtons>
+              {marketplaceButtons.map((button, index) => (
+                <MarketplaceButton
+                  key={index}
+                  href={button.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  themeColor={themeColor}
+                  disabled={button.disabled}
+                >
+                  {button.label}
+                </MarketplaceButton>
+              ))}
+            </MarketplaceButtons>
+          </>
         )}
       </Sidebar>
 

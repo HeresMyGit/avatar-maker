@@ -10,6 +10,7 @@ import Customs from './pages/Customs';
 import Based from './pages/Based';
 import Details from './pages/Details';
 import OGMfers from './pages/OGMfers';
+import MyMfers from './pages/MyMfers';
 import { TRAIT_CATEGORIES } from './config/traits';
 import { css, keyframes } from '@emotion/react';
 import { useNavigate } from 'react-router-dom';
@@ -523,7 +524,6 @@ const getThemeColor = (selectedTraits) => {
 function Creator({ themeColor, setThemeColor }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedTraits, setSelectedTraits] = useState(() => {
     const initialTraits = generateRandomTraits();
     // Set initial theme color based on the randomly generated background
@@ -539,14 +539,6 @@ function Creator({ themeColor, setThemeColor }) {
     const newThemeColor = getThemeColor(selectedTraits);
     setThemeColor(newThemeColor);
   }, [selectedTraits.background, setThemeColor]);
-
-  const toggleMenu = () => {
-    setIsMenuOpen(prevState => !prevState);
-  };
-
-  const closeMenu = () => {
-    setIsMenuOpen(false);
-  };
 
   const handleTraitChange = (traitType, value) => {
     setSelectedTraits(prev => ({
@@ -586,22 +578,6 @@ function Creator({ themeColor, setThemeColor }) {
 
   return (
     <CreatorContainer themeColor={themeColor}>
-      <MenuButton onClick={toggleMenu} isOpen={isMenuOpen} />
-      <NavigationOverlay isOpen={isMenuOpen}>
-        <NavigationContent>
-          {NAVIGATION_ITEMS.map(({ path, label }) => (
-            <NavLink 
-              key={path}
-              to={path} 
-              active={location.pathname === path} 
-              themeColor={themeColor}
-              onClick={closeMenu}
-            >
-              {label}
-            </NavLink>
-          ))}
-        </NavigationContent>
-      </NavigationOverlay>
       <PreviewSection themeColor={themeColor}>
         <TopBar>
           <Button 
@@ -649,17 +625,18 @@ function Creator({ themeColor, setThemeColor }) {
 }
 
 function App() {
-  const [themeColor, setThemeColor] = useState('#5cd3ff');
+  const [themeColor, setThemeColor] = useState('#6D28D9');
 
   return (
     <Router basename="/avatar-maker">
       <Routes>
-        <Route path="/" element={<Layout themeColor={themeColor}><Home themeColor={themeColor} /></Layout>} />
-        <Route path="/creator" element={<Layout themeColor={themeColor}><Creator themeColor={themeColor} setThemeColor={setThemeColor} /></Layout>} />
-        <Route path="/og" element={<Layout themeColor={themeColor}><OGMfers themeColor={themeColor} /></Layout>} />
-        <Route path="/customs" element={<Layout themeColor={themeColor}><Customs themeColor={themeColor} /></Layout>} />
-        <Route path="/based" element={<Layout themeColor={themeColor}><Based themeColor={themeColor} /></Layout>} />
-        <Route path="/details" element={<Layout themeColor={themeColor}><Details themeColor={themeColor} /></Layout>} />
+        <Route path="/" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Home themeColor={themeColor} /></Layout>} />
+        <Route path="/creator" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Creator themeColor={themeColor} setThemeColor={setThemeColor} /></Layout>} />
+        <Route path="/og" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><OGMfers themeColor={themeColor} /></Layout>} />
+        <Route path="/customs" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Customs themeColor={themeColor} /></Layout>} />
+        <Route path="/based" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Based themeColor={themeColor} /></Layout>} />
+        <Route path="/my" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><MyMfers themeColor={themeColor} /></Layout>} />
+        <Route path="/details" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Details themeColor={themeColor} /></Layout>} />
       </Routes>
     </Router>
   );

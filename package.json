@@ -15,10 +15,14 @@
     "@google/model-viewer": "^4.0.0",
     "@react-three/drei": "^9.97.0",
     "@react-three/fiber": "^8.15.16",
+    "@tanstack/react-query": "^5.66.0",
+    "@web3modal/wagmi": "^5.1.11",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^7.1.5",
-    "three": "^0.161.0"
+    "three": "^0.161.0",
+    "viem": "^2.22.22",
+    "wagmi": "^2.14.10"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

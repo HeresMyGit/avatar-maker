@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import styled from '@emotion/styled';
 import { keyframes } from '@emotion/react';
+import { COLOR_MAP } from '../config/colors';
 
 // Navigation items shared across the app
 export const NAVIGATION_ITEMS = [
@@ -9,7 +10,8 @@ export const NAVIGATION_ITEMS = [
   { path: '/creator', label: 'Creator' },
   { path: '/og', label: 'OG mfers' },
   { path: '/customs', label: 'Customs' },
-  { path: '/based', label: 'Based' }
+  { path: '/based', label: 'Based' },
+  { path: '/my', label: 'My mfers' }
 ];
 
 const fadeIn = keyframes`
@@ -78,6 +80,8 @@ const NavigationOverlay = styled.div`
   opacity: ${props => props.isOpen ? 1 : 0};
   pointer-events: ${props => props.isOpen ? 'all' : 'none'};
   transition: opacity 0.3s ease;
+  overflow-y: auto;
+  padding: 2rem 0;
 `;
 
 const NavigationContent = styled.div`
@@ -85,6 +89,8 @@ const NavigationContent = styled.div`
   flex-direction: column;
   gap: 2rem;
   animation: ${fadeIn} 0.5s ease forwards;
+  max-height: 100%;
+  padding: 1rem;
 `;
 
 const NavLink = styled(Link)`
@@ -147,7 +153,38 @@ const PageContainer = styled.div`
   }
 `;
 
-const Layout = ({ children, themeColor }) => {
+const ColorPalette = styled.div`
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 2rem;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  width: fit-content;
+  margin: 0 auto 2rem auto;
+`;
+
+const ColorButton = styled.button`
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid ${props => props.isSelected ? 'white' : 'rgba(255, 255, 255, 0.2)'};
+  background: #${props => props.color};
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+
+  &:hover {
+    transform: scale(1.2);
+    border-color: white;
+  }
+`;
+
+const Layout = ({ children, themeColor, onThemeChange }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const location = useLocation();
 
@@ -159,12 +196,27 @@ const Layout = ({ children, themeColor }) => {
     setIsMenuOpen(false);
   };
 
+  const handleColorChange = (color) => {
+    onThemeChange(`#${color}`);
+  };
+
   return (
     <PageContainer themeColor={themeColor}>
       <MenuButton onClick={toggleMenu} isOpen={isMenuOpen} />
       
       <NavigationOverlay isOpen={isMenuOpen}>
         <NavigationContent>
+          <ColorPalette>
+            {Object.entries(COLOR_MAP).map(([name, color]) => (
+              <ColorButton
+                key={name}
+                color={color}
+                isSelected={themeColor === `#${color}`}
+                onClick={() => handleColorChange(color)}
+                title={name}
+              />
+            ))}
+          </ColorPalette>
           {NAVIGATION_ITEMS.map(({ path, label }) => (
             <NavLink 
               key={path}

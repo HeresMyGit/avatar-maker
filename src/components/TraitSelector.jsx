@@ -1,7 +1,7 @@
-import styled from '@emotion/styled';
-import { TRAIT_CATEGORIES } from '../config/traits';
-import { keyframes, css } from '@emotion/react';
 import { useState } from 'react';
+import styled from '@emotion/styled';
+import { keyframes, css } from '@emotion/react';
+import { TRAIT_CATEGORIES } from '../config/traits';
 
 const shine = keyframes`
   0% { background-position: -200% center; }
