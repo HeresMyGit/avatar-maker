@@ -15,97 +15,56 @@ export const NAVIGATION_ITEMS = [
 ];
 
 const fadeIn = keyframes`
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 `;
 
-const slideIn = keyframes`
-  from { transform: translateX(-100%); }
-  to { transform: translateX(0); }
-`;
-
-const MenuButton = styled.button`
-  position: fixed;
-  top: 30px;
-  left: 30px;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 50%;
-  width: 60px;
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.3s ease;
-
-  &:hover {
-    transform: scale(1.1);
-    background: rgba(0, 0, 0, 0.6);
-  }
-
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    width: 24px;
-    height: 2px;
-    background: white;
-    transition: all 0.3s ease;
-  }
-
-  &::before {
-    transform: translateY(-6px) ${props => props.isOpen ? 'rotate(45deg) translateY(6px)' : ''};
-  }
-
-  &::after {
-    transform: translateY(6px) ${props => props.isOpen ? 'rotate(-45deg) translateY(-6px)' : ''};
-  }
-`;
-
-const NavigationOverlay = styled.div`
+const TopBar = styled.div`
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.95);
-  backdrop-filter: blur(20px);
-  z-index: 999;
+  right: 0;
+  height: 80px;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
-  justify-content: center;
-  opacity: ${props => props.isOpen ? 1 : 0};
-  pointer-events: ${props => props.isOpen ? 'all' : 'none'};
-  transition: opacity 0.3s ease;
-  overflow-y: auto;
-  padding: 2rem 0;
+  padding: 0 30px;
+  z-index: 100;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+
+  @media (max-width: 768px) {
+    padding: 0 20px;
+  }
 `;
 
-const NavigationContent = styled.div`
+const TopNavigation = styled.nav`
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 2rem;
-  animation: ${fadeIn} 0.5s ease forwards;
-  max-height: 100%;
-  padding: 1rem;
+  margin-left: auto;
+
+  @media (max-width: 1024px) {
+    gap: 1rem;
+  }
 `;
 
-const NavLink = styled(Link)`
+const TopNavLink = styled(Link)`
   font-family: 'SartoshiScript';
-  font-size: 4em;
+  font-size: 1.4em;
   color: white;
   text-decoration: none;
   position: relative;
   transition: all 0.3s ease;
-  opacity: 0.6;
-  text-align: center;
+  opacity: ${props => props.active ? '1' : '0.6'};
+  white-space: nowrap;
+
+  @media (max-width: 1024px) {
+    font-size: 1.2em;
+  }
 
   &:hover {
     opacity: 1;
-    transform: scale(1.1);
   }
 
   &::after {
@@ -125,8 +84,87 @@ const NavLink = styled(Link)`
   }
 `;
 
+const Logo = styled(Link)`
+  font-family: 'SartoshiScript';
+  font-size: 2em;
+  color: white;
+  text-decoration: none;
+  background: linear-gradient(135deg, ${props => props.themeColor} 0%, ${props => props.themeColor}DD 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-right: 2rem;
+`;
+
+const ColorPickerContainer = styled.div`
+  position: relative;
+  margin-left: 2rem;
+`;
+
+const ColorPickerButton = styled.button`
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: ${props => props.color};
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+
+  &:hover {
+    transform: scale(1.1);
+    border-color: white;
+  }
+
+  &::before {
+    content: '🎨';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 16px;
+  }
+`;
+
+const ColorPalette = styled.div`
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  opacity: ${props => props.isOpen ? 1 : 0};
+  pointer-events: ${props => props.isOpen ? 'all' : 'none'};
+  transform: translateY(${props => props.isOpen ? '0' : '-10px'});
+  transition: all 0.3s ease;
+  animation: ${props => props.isOpen ? fadeIn : 'none'} 0.3s ease;
+`;
+
+const ColorButton = styled.button`
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid ${props => props.isSelected ? 'white' : 'rgba(255, 255, 255, 0.2)'};
+  background: #${props => props.color};
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: scale(1.2);
+    border-color: white;
+  }
+`;
+
 const PageContainer = styled.div`
   min-height: 100vh;
+  padding-top: 80px;
   background: linear-gradient(135deg, #13151a 0%, #1a1c23 100%);
   position: relative;
   overflow: hidden;
@@ -134,7 +172,7 @@ const PageContainer = styled.div`
   &::before {
     content: '';
     position: absolute;
-    top: 0;
+    top: 80px;
     left: 0;
     right: 0;
     height: 1px;
@@ -153,83 +191,49 @@ const PageContainer = styled.div`
   }
 `;
 
-const ColorPalette = styled.div`
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-  justify-content: center;
-  margin-bottom: 2rem;
-  padding: 16px;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  width: fit-content;
-  margin: 0 auto 2rem auto;
-`;
-
-const ColorButton = styled.button`
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 2px solid ${props => props.isSelected ? 'white' : 'rgba(255, 255, 255, 0.2)'};
-  background: #${props => props.color};
-  cursor: pointer;
-  padding: 0;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-
-  &:hover {
-    transform: scale(1.2);
-    border-color: white;
-  }
-`;
-
 const Layout = ({ children, themeColor, onThemeChange }) => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const location = useLocation();
-
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
-  };
-
-  const closeMenu = () => {
-    setIsMenuOpen(false);
-  };
 
   const handleColorChange = (color) => {
     onThemeChange(`#${color}`);
+    setIsColorPickerOpen(false);
   };
 
   return (
     <PageContainer themeColor={themeColor}>
-      <MenuButton onClick={toggleMenu} isOpen={isMenuOpen} />
-      
-      <NavigationOverlay isOpen={isMenuOpen}>
-        <NavigationContent>
-          <ColorPalette>
-            {Object.entries(COLOR_MAP).map(([name, color]) => (
-              <ColorButton
-                key={name}
-                color={color}
-                isSelected={themeColor === `#${color}`}
-                onClick={() => handleColorChange(color)}
-                title={name}
-              />
-            ))}
-          </ColorPalette>
+      <TopBar>
+        <Logo to="/" themeColor={themeColor}>mfers</Logo>
+        <TopNavigation>
           {NAVIGATION_ITEMS.map(({ path, label }) => (
-            <NavLink 
+            <TopNavLink
               key={path}
-              to={path} 
-              active={location.pathname === path} 
+              to={path}
+              active={location.pathname === path}
               themeColor={themeColor}
-              onClick={closeMenu}
             >
               {label}
-            </NavLink>
+            </TopNavLink>
           ))}
-        </NavigationContent>
-      </NavigationOverlay>
+          <ColorPickerContainer>
+            <ColorPickerButton 
+              color={themeColor}
+              onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
+            />
+            <ColorPalette isOpen={isColorPickerOpen}>
+              {Object.entries(COLOR_MAP).map(([name, color]) => (
+                <ColorButton
+                  key={name}
+                  color={color}
+                  isSelected={themeColor === `#${color}`}
+                  onClick={() => handleColorChange(color)}
+                  title={name}
+                />
+              ))}
+            </ColorPalette>
+          </ColorPickerContainer>
+        </TopNavigation>
+      </TopBar>
 
       {children}
     </PageContainer>

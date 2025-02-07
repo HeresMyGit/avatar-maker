@@ -18,6 +18,8 @@ export default defineConfig({
         secure: true,
         rewrite: (path) => path
       }
-    }
+    },
+    host: true,
+    port: 5173
   }
 }) 
