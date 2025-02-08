@@ -3,6 +3,27 @@ import { Link, useLocation } from 'react-router-dom';
 import styled from '@emotion/styled';
 import { keyframes } from '@emotion/react';
 import { COLOR_MAP } from '../config/colors';
+import { createWeb3Modal, defaultWagmiConfig } from '@web3modal/wagmi/react';
+import { WagmiConfig } from 'wagmi';
+import { mainnet } from 'wagmi/chains';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+// Configure web3modal
+const projectId = 'YOUR_WALLETCONNECT_PROJECT_ID'; // You'll need to get this from https://cloud.walletconnect.com
+
+const metadata = {
+  name: 'mfer Avatars',
+  description: 'View your mfer avatars',
+  url: window.location.origin,
+  icons: ['https://avatars.githubusercontent.com/u/37784886']
+};
+
+const chains = [mainnet];
+const wagmiConfig = defaultWagmiConfig({ chains, projectId, metadata });
+const queryClient = new QueryClient();
+
+// Create modal
+createWeb3Modal({ wagmiConfig, projectId, chains });
 
 // Navigation items shared across the app
 export const NAVIGATION_ITEMS = [
@@ -95,70 +116,162 @@ const Logo = styled(Link)`
   margin-right: 2rem;
 `;
 
-const ColorPickerContainer = styled.div`
+const SettingsContainer = styled.div`
   position: relative;
   margin-left: 2rem;
 `;
 
-const ColorPickerButton = styled.button`
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  background: ${props => props.color};
+const spin = keyframes`
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+`;
+
+const SettingsButton = styled.button`
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
   cursor: pointer;
   padding: 0;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
-  &:hover {
-    transform: scale(1.1);
-    border-color: white;
+  svg {
+    width: 20px;
+    height: 20px;
+    color: ${props => props.color};
+    transition: all 0.3s ease;
   }
 
-  &::before {
-    content: '🎨';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 16px;
+  &:hover {
+    background: rgba(0, 0, 0, 0.5);
+    border-color: ${props => props.color}66;
+    transform: translateY(-2px);
+    
+    svg {
+      animation: ${spin} 4s linear infinite;
+    }
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 `;
 
-const ColorPalette = styled.div`
+const SettingsDropdown = styled.div`
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
-  padding: 12px;
-  background: rgba(0, 0, 0, 0.9);
-  backdrop-filter: blur(10px);
-  border-radius: 12px;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   opacity: ${props => props.isOpen ? 1 : 0};
   pointer-events: ${props => props.isOpen ? 'all' : 'none'};
   transform: translateY(${props => props.isOpen ? '0' : '-10px'});
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   animation: ${props => props.isOpen ? fadeIn : 'none'} 0.3s ease;
+  min-width: 300px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    right: 14px;
+    width: 12px;
+    height: 12px;
+    background: rgba(0, 0, 0, 0.95);
+    transform: rotate(45deg);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+`;
+
+const SettingsSection = styled.div`
+  &:not(:last-child) {
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+`;
+
+const SettingsTitle = styled.h3`
+  font-family: 'SartoshiScript';
+  font-size: 1.6em;
+  color: ${props => props.themeColor};
+  margin: 0 0 16px 0;
+  opacity: 0.9;
+`;
+
+const ColorGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  padding: 4px;
 `;
 
 const ColorButton = styled.button`
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 2px solid ${props => props.isSelected ? 'white' : 'rgba(255, 255, 255, 0.2)'};
-  background: #${props => props.color};
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 2px solid ${props => props.isSelected ? `#${props.colorHex}` : 'rgba(255, 255, 255, 0.1)'};
+  background: #${props => props.colorHex};
   cursor: pointer;
   padding: 0;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
 
   &:hover {
-    transform: scale(1.2);
-    border-color: white;
+    transform: translateY(-2px);
+    border-color: #${props => props.colorHex};
+    box-shadow: 0 4px 12px #${props => props.colorHex}33;
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  ${props => props.isSelected && `
+    &::after {
+      content: '✓';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: rgba(0, 0, 0, 0.5);
+      font-size: 16px;
+    }
+  `}
+`;
+
+const WalletContainer = styled.div`
+  w3m-button {
+    width: 100%;
+    font-family: 'SartoshiScript';
+    --w3m-accent-color: ${props => props.themeColor};
+    --w3m-font-family: 'SartoshiScript';
+    --w3m-button-border-radius: 12px;
+    --w3m-background-color: rgba(255, 255, 255, 0.03);
+    --w3m-container-border-radius: 12px;
+    --w3m-button-hover-bg-color: rgba(255, 255, 255, 0.06);
+    --w3m-text-medium-regular-size: 1.4em;
+    --w3m-button-border-size: 1px;
+    --w3m-button-border-color: rgba(255, 255, 255, 0.1);
+    --w3m-wallet-icon-border-radius: 8px;
+    --w3m-text-big-bold-size: 1.4em;
+    --w3m-color-overlay: ${props => props.themeColor}05;
+
+    &:hover {
+      transform: translateY(-2px);
+    }
   }
 `;
 
@@ -192,51 +305,70 @@ const PageContainer = styled.div`
 `;
 
 const Layout = ({ children, themeColor, onThemeChange }) => {
-  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const location = useLocation();
 
   const handleColorChange = (color) => {
     onThemeChange(`#${color}`);
-    setIsColorPickerOpen(false);
   };
 
   return (
-    <PageContainer themeColor={themeColor}>
-      <TopBar>
-        <Logo to="/" themeColor={themeColor}>mfers</Logo>
-        <TopNavigation>
-          {NAVIGATION_ITEMS.map(({ path, label }) => (
-            <TopNavLink
-              key={path}
-              to={path}
-              active={location.pathname === path}
-              themeColor={themeColor}
-            >
-              {label}
-            </TopNavLink>
-          ))}
-          <ColorPickerContainer>
-            <ColorPickerButton 
-              color={themeColor}
-              onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
-            />
-            <ColorPalette isOpen={isColorPickerOpen}>
-              {Object.entries(COLOR_MAP).map(([name, color]) => (
-                <ColorButton
-                  key={name}
-                  color={color}
-                  isSelected={themeColor === `#${color}`}
-                  onClick={() => handleColorChange(color)}
-                  title={name}
-                />
+    <WagmiConfig config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <PageContainer themeColor={themeColor}>
+          <TopBar>
+            <Logo to="/" themeColor={themeColor}>mfer avatars</Logo>
+            <TopNavigation>
+              {NAVIGATION_ITEMS.map(({ path, label }) => (
+                <TopNavLink
+                  key={path}
+                  to={path}
+                  active={location.pathname === path}
+                  themeColor={themeColor}
+                >
+                  {label}
+                </TopNavLink>
               ))}
-            </ColorPalette>
-          </ColorPickerContainer>
-        </TopNavigation>
-      </TopBar>
+              <SettingsContainer>
+                <SettingsButton 
+                  color={themeColor}
+                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
+                    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
+                  </svg>
+                </SettingsButton>
+                <SettingsDropdown isOpen={isSettingsOpen}>
+                  <SettingsSection>
+                    <SettingsTitle themeColor={themeColor}>Wallet</SettingsTitle>
+                    <WalletContainer themeColor={themeColor}>
+                      <w3m-button />
+                    </WalletContainer>
+                  </SettingsSection>
+                  <SettingsSection>
+                    <SettingsTitle themeColor={themeColor}>Theme</SettingsTitle>
+                    <ColorGrid>
+                      {Object.entries(COLOR_MAP).map(([name, color]) => (
+                        <ColorButton
+                          key={name}
+                          colorHex={color}
+                          isSelected={themeColor === `#${color}`}
+                          onClick={() => handleColorChange(color)}
+                          title={name}
+                        />
+                      ))}
+                    </ColorGrid>
+                  </SettingsSection>
+                </SettingsDropdown>
+              </SettingsContainer>
+            </TopNavigation>
+          </TopBar>
 
-      {children}
-    </PageContainer>
+          {children}
+        </PageContainer>
+      </QueryClientProvider>
+    </WagmiConfig>
   );
 };
 
