@@ -9,6 +9,7 @@ class Based extends BaseMferGallery {
   render() {
     return super.render({
       title: "Based mfers",
+      tagline: "2069 extra avatars with extended traits",
       themeColor: this.props.themeColor,
       searchPlaceholder: "Enter based mfer ID",
       marketplaceButtons: [

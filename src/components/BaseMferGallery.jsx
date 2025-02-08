@@ -32,8 +32,11 @@ class BaseMferGallery {
       setFilteredModels(filtered);
     }, [selectedTraits, models]);
 
-    const handleTraitChange = (newTraits) => {
-      setSelectedTraits(newTraits);
+    const handleTraitChange = (category, value) => {
+      setSelectedTraits(prev => ({
+        ...prev,
+        [category]: value
+      }));
     };
 
     return {

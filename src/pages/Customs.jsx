@@ -32,6 +32,7 @@ class Customs extends BaseMferGallery {
   render() {
     return super.render({
       title: "Custom mfers",
+      tagline: "a small set of hand crafted mfer avatars",
       themeColor: this.props.themeColor,
       searchPlaceholder: "Enter custom mfer ID",
       featuredModels: FEATURED_MODELS,

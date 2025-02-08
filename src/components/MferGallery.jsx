@@ -88,6 +88,15 @@ const Title = styled.h1`
   line-height: 1.2;
 `;
 
+const Tagline = styled.p`
+  font-family: system-ui;
+  font-size: 1em;
+  color: ${props => props.themeColor}DD;
+  margin: 0.5rem 0 1.5rem;
+  line-height: 1.4;
+  animation: ${fadeIn} 1s ease-out 0.2s backwards;
+`;
+
 const SearchContainer = styled.div`
   display: flex;
   flex-direction: column;
@@ -338,6 +347,7 @@ const SidebarDivider = styled.div`
 
 const MferGallery = ({ 
   title,
+  tagline,
   themeColor,
   models,
   loading,
@@ -366,6 +376,7 @@ const MferGallery = ({
     <GalleryContainer themeColor={themeColor}>
       <Sidebar themeColor={themeColor}>
         <Title themeColor={themeColor}>{title}</Title>
+        {tagline && <Tagline themeColor={themeColor}>{tagline}</Tagline>}
         
         <SearchContainer>
           <Input

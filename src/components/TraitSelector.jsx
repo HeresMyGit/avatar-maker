@@ -10,6 +10,73 @@ const Container = styled.div`
   position: relative;
 `;
 
+const FiltersButton = styled.button`
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  padding: 12px 20px;
+  color: white;
+  cursor: pointer;
+  font-family: 'SartoshiScript';
+  font-size: 1.6em;
+  width: 100%;
+  transition: all 0.3s ease;
+  font-weight: 400;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.3);
+  }
+`;
+
+const FiltersHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+`;
+
+const FiltersTitle = styled.div`
+  display: flex;
+  align-items: center;
+`;
+
+const ClearAllButton = styled.button`
+  background: none;
+  border: none;
+  color: ${props => props.themeColor};
+  font-family: system-ui;
+  font-size: 0.8em;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-radius: 6px;
+
+  &:hover {
+    background: ${props => props.themeColor}22;
+  }
+`;
+
+const FiltersCount = styled.span`
+  background: ${props => props.themeColor};
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-family: system-ui;
+  font-size: 0.7em;
+  margin-left: 8px;
+`;
+
+const FiltersPanel = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-height: ${props => props.isExpanded ? '2000px' : '0'};
+  opacity: ${props => props.isExpanded ? '1' : '0'};
+  overflow: hidden;
+  transition: all 0.3s ease;
+  margin-top: ${props => props.isExpanded ? '24px' : '0'};
+`;
+
 const CategoryContainer = styled.div`
   background: rgba(0, 0, 0, 0.2);
   border-radius: 12px;
@@ -118,10 +185,18 @@ const HeaderControls = styled.div`
 
 function TraitSelector({ selectedTraits, onTraitChange, themeColor }) {
   const [expandedCategories, setExpandedCategories] = useState({});
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
 
   const handleClearCategory = (e, category) => {
     e.stopPropagation();
     onTraitChange(category, '');
+  };
+
+  const handleClearAll = (e) => {
+    e.stopPropagation();
+    Object.keys(selectedTraits).forEach(category => {
+      onTraitChange(category, '');
+    });
   };
 
   const toggleCategory = (category) => {
@@ -137,54 +212,77 @@ function TraitSelector({ selectedTraits, onTraitChange, themeColor }) {
     return option ? option.label : null;
   };
 
+  const getActiveFiltersCount = () => {
+    // Only count traits that have a non-empty value
+    return Object.values(selectedTraits).filter(value => value && value !== '').length;
+  };
+
   return (
     <Container>
-      {Object.entries(TRAIT_CATEGORIES).map(([category, { name, options }]) => {
-        const isExpanded = expandedCategories[category];
-        const selectedTraitId = selectedTraits[category];
-        const selectedLabel = getSelectedTraitLabel(category, selectedTraitId);
-
-        return (
-          <CategoryContainer key={category}>
-            <CategoryHeader 
-              isExpanded={isExpanded}
-              onClick={() => toggleCategory(category)}
+      <FiltersButton onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}>
+        <FiltersHeader>
+          <FiltersTitle>
+            Filters {getActiveFiltersCount() > 0 && `(${getActiveFiltersCount()})`}
+          </FiltersTitle>
+          {getActiveFiltersCount() > 0 && (
+            <ClearAllButton 
+              onClick={handleClearAll}
+              themeColor={themeColor}
             >
-              <CategoryTitle 
-                hasSelection={selectedTraitId}
-                themeColor={themeColor}
+              Clear All
+            </ClearAllButton>
+          )}
+        </FiltersHeader>
+      </FiltersButton>
+
+      <FiltersPanel isExpanded={isFiltersExpanded}>
+        {Object.entries(TRAIT_CATEGORIES).map(([category, { name, options }]) => {
+          const isExpanded = expandedCategories[category];
+          const selectedTraitId = selectedTraits[category];
+          const selectedLabel = getSelectedTraitLabel(category, selectedTraitId);
+
+          return (
+            <CategoryContainer key={category}>
+              <CategoryHeader 
+                isExpanded={isExpanded}
+                onClick={() => toggleCategory(category)}
               >
-                {name}
-                {!isExpanded && selectedLabel && (
-                  <SelectedTrait themeColor={themeColor}>
-                    {selectedLabel}
-                  </SelectedTrait>
-                )}
-              </CategoryTitle>
-              <HeaderControls>
-                {selectedTraitId && (
-                  <ClearButton onClick={(e) => handleClearCategory(e, category)}>
-                    Clear
-                  </ClearButton>
-                )}
-                <ExpandIcon isExpanded={isExpanded}>▼</ExpandIcon>
-              </HeaderControls>
-            </CategoryHeader>
-            <OptionsGrid isExpanded={isExpanded}>
-              {options.map((option) => (
-                <OptionButton
-                  key={option.id}
-                  isSelected={selectedTraits[category] === option.id}
-                  onClick={() => onTraitChange(category, option.id)}
+                <CategoryTitle 
+                  hasSelection={selectedTraitId}
                   themeColor={themeColor}
                 >
-                  {option.label}
-                </OptionButton>
-              ))}
-            </OptionsGrid>
-          </CategoryContainer>
-        );
-      })}
+                  {name}
+                  {!isExpanded && selectedLabel && (
+                    <SelectedTrait themeColor={themeColor}>
+                      {selectedLabel}
+                    </SelectedTrait>
+                  )}
+                </CategoryTitle>
+                <HeaderControls>
+                  {selectedTraitId && (
+                    <ClearButton onClick={(e) => handleClearCategory(e, category)}>
+                      Clear
+                    </ClearButton>
+                  )}
+                  <ExpandIcon isExpanded={isExpanded}>▼</ExpandIcon>
+                </HeaderControls>
+              </CategoryHeader>
+              <OptionsGrid isExpanded={isExpanded}>
+                {options.map((option) => (
+                  <OptionButton
+                    key={option.id}
+                    isSelected={selectedTraits[category] === option.id}
+                    onClick={() => onTraitChange(category, option.id)}
+                    themeColor={themeColor}
+                  >
+                    {option.label}
+                  </OptionButton>
+                ))}
+              </OptionsGrid>
+            </CategoryContainer>
+          );
+        })}
+      </FiltersPanel>
     </Container>
   );
 }

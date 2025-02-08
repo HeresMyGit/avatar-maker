@@ -9,6 +9,7 @@ class OGMfers extends BaseMferGallery {
   render() {
     return super.render({
       title: "OG mfers",
+      tagline: "avatars for the original 10021 mfers nft collection",
       themeColor: this.props.themeColor,
       searchPlaceholder: "Enter mfer ID",
       marketplaceButtons: [
