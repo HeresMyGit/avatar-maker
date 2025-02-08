@@ -29,10 +29,15 @@ createWeb3Modal({ wagmiConfig, projectId, chains });
 export const NAVIGATION_ITEMS = [
   { path: '/', label: 'Home' },
   { path: '/creator', label: 'Creator' },
-  { path: '/og', label: 'OG mfers' },
-  { path: '/customs', label: 'Customs' },
-  { path: '/based', label: 'Based' },
-  { path: '/my', label: 'My mfers' }
+  {
+    label: 'Galleries',
+    dropdownItems: [
+      { path: '/og', label: 'OG mfers' },
+      { path: '/customs', label: 'Customs' },
+      { path: '/based', label: 'Based' },
+      { path: '/my', label: 'My mfers' }
+    ]
+  }
 ];
 
 const fadeIn = keyframes`
@@ -67,6 +72,24 @@ const TopNavigation = styled.nav`
 
   @media (max-width: 1024px) {
     gap: 1rem;
+  }
+`;
+
+const TopNavItem = styled.div`
+  position: relative;
+  font-family: 'SartoshiScript';
+  font-size: 1.4em;
+  color: white;
+  cursor: pointer;
+  opacity: ${props => props.active ? '1' : '0.6'};
+  transition: all 0.3s ease;
+
+  @media (max-width: 1024px) {
+    font-size: 1.2em;
+  }
+
+  &:hover {
+    opacity: 1;
   }
 `;
 
@@ -304,8 +327,54 @@ const PageContainer = styled.div`
   }
 `;
 
+const DropdownContent = styled.div`
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 8px;
+  display: ${props => props.isOpen ? 'flex' : 'none'};
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 8px;
+  z-index: 1000;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+    width: 12px;
+    height: 12px;
+    background: rgba(0, 0, 0, 0.95);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+`;
+
+const DropdownItem = styled(Link)`
+  color: white;
+  text-decoration: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  font-size: 0.9em;
+  text-align: center;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+`;
+
 const Layout = ({ children, themeColor, onThemeChange }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState(null);
   const location = useLocation();
 
   const handleColorChange = (color) => {
@@ -319,15 +388,36 @@ const Layout = ({ children, themeColor, onThemeChange }) => {
           <TopBar>
             <Logo to="/" themeColor={themeColor}>mfer avatars</Logo>
             <TopNavigation>
-              {NAVIGATION_ITEMS.map(({ path, label }) => (
-                <TopNavLink
-                  key={path}
-                  to={path}
-                  active={location.pathname === path}
-                  themeColor={themeColor}
-                >
-                  {label}
-                </TopNavLink>
+              {NAVIGATION_ITEMS.map((item) => (
+                item.dropdownItems ? (
+                  <TopNavItem
+                    key={item.label}
+                    active={item.dropdownItems.some(dropItem => location.pathname === dropItem.path)}
+                    onClick={() => setOpenDropdown(openDropdown === item.label ? null : item.label)}
+                  >
+                    {item.label}
+                    <DropdownContent isOpen={openDropdown === item.label}>
+                      {item.dropdownItems.map((dropItem) => (
+                        <DropdownItem
+                          key={dropItem.path}
+                          to={dropItem.path}
+                          onClick={() => setOpenDropdown(null)}
+                        >
+                          {dropItem.label}
+                        </DropdownItem>
+                      ))}
+                    </DropdownContent>
+                  </TopNavItem>
+                ) : (
+                  <TopNavLink
+                    key={item.path}
+                    to={item.path}
+                    active={location.pathname === item.path}
+                    themeColor={themeColor}
+                  >
+                    {item.label}
+                  </TopNavLink>
+                )
               ))}
               <SettingsContainer>
                 <SettingsButton 

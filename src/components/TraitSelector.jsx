@@ -8,6 +8,11 @@ const Container = styled.div`
   gap: 24px;
   padding: 4px;
   position: relative;
+
+  @media (max-width: 768px) {
+    gap: 16px;
+    padding: 2px;
+  }
 `;
 
 const FiltersButton = styled.button`
@@ -22,6 +27,11 @@ const FiltersButton = styled.button`
   width: 100%;
   transition: all 0.3s ease;
   font-weight: 400;
+
+  @media (max-width: 768px) {
+    padding: 8px 16px;
+    font-size: 1.4em;
+  }
 
   &:hover {
     background: rgba(0, 0, 0, 0.3);
@@ -40,32 +50,6 @@ const FiltersTitle = styled.div`
   align-items: center;
 `;
 
-const ClearAllButton = styled.button`
-  background: none;
-  border: none;
-  color: ${props => props.themeColor};
-  font-family: system-ui;
-  font-size: 0.8em;
-  padding: 4px 8px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border-radius: 6px;
-
-  &:hover {
-    background: ${props => props.themeColor}22;
-  }
-`;
-
-const FiltersCount = styled.span`
-  background: ${props => props.themeColor};
-  color: white;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-family: system-ui;
-  font-size: 0.7em;
-  margin-left: 8px;
-`;
-
 const FiltersPanel = styled.div`
   display: flex;
   flex-direction: column;
@@ -75,6 +59,11 @@ const FiltersPanel = styled.div`
   overflow: hidden;
   transition: all 0.3s ease;
   margin-top: ${props => props.isExpanded ? '24px' : '0'};
+
+  @media (max-width: 768px) {
+    gap: 16px;
+    margin-top: ${props => props.isExpanded ? '16px' : '0'};
+  }
 `;
 
 const CategoryContainer = styled.div`
@@ -83,6 +72,10 @@ const CategoryContainer = styled.div`
   padding: 16px;
   border: 1px solid rgba(255, 255, 255, 0.07);
   transition: all 0.3s ease;
+
+  @media (max-width: 768px) {
+    padding: 12px;
+  }
 
   &:hover {
     background: rgba(0, 0, 0, 0.3);
@@ -109,6 +102,10 @@ const CategoryTitle = styled.h3`
   align-items: flex-start;
   gap: 4px;
   opacity: ${props => props.hasSelection ? '1' : '0.7'};
+
+  @media (max-width: 768px) {
+    font-size: 1.4em;
+  }
 `;
 
 const SelectedTrait = styled.span`
@@ -183,7 +180,7 @@ const HeaderControls = styled.div`
   gap: 8px;
 `;
 
-function TraitSelector({ selectedTraits, onTraitChange, themeColor }) {
+function TraitSelector({ selectedTraits = {}, onTraitChange, themeColor }) {
   const [expandedCategories, setExpandedCategories] = useState({});
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
 
@@ -194,9 +191,11 @@ function TraitSelector({ selectedTraits, onTraitChange, themeColor }) {
 
   const handleClearAll = (e) => {
     e.stopPropagation();
-    Object.keys(selectedTraits).forEach(category => {
-      onTraitChange(category, '');
-    });
+    if (selectedTraits) {
+      Object.keys(selectedTraits).forEach(category => {
+        onTraitChange(category, '');
+      });
+    }
   };
 
   const toggleCategory = (category) => {
@@ -207,14 +206,14 @@ function TraitSelector({ selectedTraits, onTraitChange, themeColor }) {
   };
 
   const getSelectedTraitLabel = (category, traitId) => {
-    if (!traitId) return null;
+    if (!traitId || !TRAIT_CATEGORIES[category]) return null;
     const option = TRAIT_CATEGORIES[category].options.find(opt => opt.id === traitId);
     return option ? option.label : null;
   };
 
   const getActiveFiltersCount = () => {
     // Only count traits that have a non-empty value
-    return Object.values(selectedTraits).filter(value => value && value !== '').length;
+    return selectedTraits ? Object.values(selectedTraits).filter(value => value && value !== '').length : 0;
   };
 
   return (
@@ -222,16 +221,8 @@ function TraitSelector({ selectedTraits, onTraitChange, themeColor }) {
       <FiltersButton onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}>
         <FiltersHeader>
           <FiltersTitle>
-            Filters {getActiveFiltersCount() > 0 && `(${getActiveFiltersCount()})`}
+            Traits {getActiveFiltersCount() > 0 && `(${getActiveFiltersCount()})`}
           </FiltersTitle>
-          {getActiveFiltersCount() > 0 && (
-            <ClearAllButton 
-              onClick={handleClearAll}
-              themeColor={themeColor}
-            >
-              Clear All
-            </ClearAllButton>
-          )}
         </FiltersHeader>
       </FiltersButton>
 

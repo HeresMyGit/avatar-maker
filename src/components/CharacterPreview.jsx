@@ -1,12 +1,33 @@
-import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import * as THREE from 'three';
+import { useRef, useEffect, useState, forwardRef, useImperativeHandle, Suspense } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera, useGLTF, Environment, useAnimations } from '@react-three/drei';
+import { OrbitControls, PerspectiveCamera, useGLTF, Environment, useAnimations, Text } from '@react-three/drei';
 import { TRAIT_CATEGORIES } from '../config/traits';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-import * as THREE from 'three';
+import styled from '@emotion/styled';
 
 const GLB_URL = "https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/builders/mfermashup.glb";
+const LOADING_MODEL_URL = "/avatar-maker/sartoshi-head.glb";
+
+const LoadingText = styled.div`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, 50%);
+  font-family: 'SartoshiScript';
+  font-size: 2em;
+  color: white;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  pointer-events: none;
+`;
+
+// Helper function to normalize trait IDs
+const normalizeTraitId = (traitType, traitId) => {
+  if (!traitId) return null;
+  return traitId;
+};
 
 // Helper function to get type-specific mouth
 const getTypeMouth = (mouthType, bodyType) => {
@@ -214,78 +235,68 @@ const TRAIT_MESH_MAPPING = {
   }
 };
 
-const CharacterPreview = forwardRef(({ selectedTraits, themeColor }, ref) => {
-  const groupRef = useRef();
-  const { scene: threeScene } = useThree();
-  const [modelLoaded, setModelLoaded] = useState(false);
-  const { scene, nodes, animations } = useGLTF(GLB_URL);
-  const animationRef = useRef();
-  const sceneRootRef = useRef();
+// Loading model component
+const LoadingModel = () => {
+  const loadingGroupRef = useRef();
+  const { scene: loadingScene } = useGLTF(LOADING_MODEL_URL);
 
-  // Set up model with SkeletonUtils
   useEffect(() => {
-    // Clear existing scene first
-    if (groupRef.current) {
-      while (groupRef.current.children.length > 0) {
-        const child = groupRef.current.children[0];
-        groupRef.current.remove(child);
+    if (!loadingScene || !loadingGroupRef.current) return;
+
+    const clonedLoadingScene = loadingScene.clone();
+    clonedLoadingScene.scale.set(0.8, 0.8, 0.8);
+    clonedLoadingScene.position.set(0, 0.9, 0);
+    clonedLoadingScene.rotation.y = -Math.PI/2;
+    
+    loadingGroupRef.current.add(clonedLoadingScene);
+
+    return () => {
+      while (loadingGroupRef.current?.children.length > 0) {
+        const child = loadingGroupRef.current.children[0];
+        loadingGroupRef.current.remove(child);
         if (child.geometry) child.geometry.dispose();
         if (child.material) child.material.dispose();
       }
-    }
-
-    if (!scene) return;
-
-    // Clone the entire scene using SkeletonUtils
-    const clonedScene = SkeletonUtils.clone(scene);
-    sceneRootRef.current = clonedScene;
-
-    // Set all meshes to invisible initially
-    clonedScene.traverse((obj) => {
-      if (obj.isMesh) {
-        obj.visible = false;
-      }
-    });
-
-    // Add cloned scene to group
-    groupRef.current.add(clonedScene);
-
-    // Set up animation
-    if (animations && animations.length > 0) {
-      const mixer = new THREE.AnimationMixer(clonedScene);
-      const clip = animations[0].clone();
-      const action = mixer.clipAction(clip);
-      action.play();
-      animationRef.current = { mixer, action };
-    }
-
-    setModelLoaded(true);
-
-    // Cleanup
-    return () => {
-      if (animationRef.current) {
-        animationRef.current.action.stop();
-        animationRef.current.mixer.stopAllAction();
-        animationRef.current.mixer.uncacheRoot(clonedScene);
-      }
-      
-      if (groupRef.current) {
-        while (groupRef.current.children.length > 0) {
-          const child = groupRef.current.children[0];
-          groupRef.current.remove(child);
-          if (child.geometry) child.geometry.dispose();
-          if (child.material) child.material.dispose();
-        }
-      }
     };
-  }, [scene, animations]);
+  }, [loadingScene]);
 
-  // Update visibility of traits when selections change
-  useEffect(() => {
-    if (!modelLoaded || !sceneRootRef.current) return;
+  useFrame((state, delta) => {
+    if (loadingGroupRef.current) {
+      loadingGroupRef.current.rotation.y += delta * 0.5;
+    }
+  });
+
+  return (
+    <>
+      <group ref={loadingGroupRef} />
+      <Text
+        position={[0, 0.4, 0]}
+        fontSize={0.3}
+        color="white"
+        anchorX="center"
+        anchorY="middle"
+        font="/avatar-maker/SartoshiScript-Regular.otf"
+        outlineWidth={0.02}
+        outlineColor="black"
+      >
+        loading...
+      </Text>
+    </>
+  );
+};
+
+// Main model component
+const MainModel = ({ selectedTraits, onLoad, sceneRef }) => {
+  const groupRef = useRef();
+  const { scene, animations } = useGLTF(GLB_URL);
+  const animationRef = useRef();
+
+  // Function to update mesh visibility based on selected traits
+  const updateMeshVisibility = () => {
+    if (!sceneRef.current) return;
 
     // First, hide all meshes
-    sceneRootRef.current.traverse((obj) => {
+    sceneRef.current.traverse((obj) => {
       if (obj.isMesh) {
         obj.visible = false;
       }
@@ -322,16 +333,11 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor }, ref) => {
         const originalMeshes = [...meshNames];
         meshNames = [];
 
-        // Get the selected eye type from TRAIT_CATEGORIES if available
         const selectedEyeType = normalizedTraitId ? `eyes_${normalizedTraitId}` : 'eyes_normal';
-        
-        // First, add the base eyeball mesh for the character type or selected type
         const baseEyeType = getTypeEyes(selectedEyeType, bodyType);
-        // Look up the base eye meshes using the correct mapping key
         const baseEyeMeshes = [baseEyeType];
         meshNames.push(...baseEyeMeshes);
 
-        // Then add any additional eye accessories (glasses, etc)
         originalMeshes.forEach(name => {
           if (!name.includes('eyes_normal') && 
               !name.includes('eyes_metal') && 
@@ -351,45 +357,96 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor }, ref) => {
     });
 
     // Show only the meshes in our Set
-    sceneRootRef.current.traverse((obj) => {
+    sceneRef.current.traverse((obj) => {
       if (obj.isMesh) {
         obj.visible = meshesToShow.has(obj.name);
       }
     });
-  }, [selectedTraits, modelLoaded]);
+  };
 
-  // Update animation
+  useEffect(() => {
+    if (!scene) return;
+
+    const clonedScene = SkeletonUtils.clone(scene);
+    sceneRef.current = clonedScene;
+
+    // Add cloned scene to group
+    groupRef.current.add(clonedScene);
+
+    if (animations && animations.length > 0) {
+      const mixer = new THREE.AnimationMixer(clonedScene);
+      const clip = animations[0].clone();
+      const action = mixer.clipAction(clip);
+      action.play();
+      animationRef.current = { mixer, action };
+    }
+
+    // Apply initial visibility
+    updateMeshVisibility();
+
+    // Notify parent that model is loaded
+    onLoad();
+
+    return () => {
+      if (animationRef.current) {
+        animationRef.current.action.stop();
+        animationRef.current.mixer.stopAllAction();
+        animationRef.current.mixer.uncacheRoot(clonedScene);
+      }
+      
+      if (groupRef.current) {
+        while (groupRef.current.children.length > 0) {
+          const child = groupRef.current.children[0];
+          groupRef.current.remove(child);
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) child.material.dispose();
+        }
+      }
+    };
+  }, [scene, animations, onLoad, sceneRef]);
+
+  // Update visibility whenever traits change
+  useEffect(() => {
+    updateMeshVisibility();
+  }, [selectedTraits]);
+
   useFrame((state, delta) => {
     if (animationRef.current) {
       animationRef.current.mixer.update(delta);
     }
   });
 
-  // Helper function to check if a mesh belongs to a category
-  const meshBelongsToCategory = (meshName, category) => {
-    const prefixes = CATEGORY_MESH_PREFIXES[category] || [];
-    return prefixes.some(prefix => meshName.toLowerCase().startsWith(prefix.toLowerCase()));
-  };
+  return <group ref={groupRef} />;
+};
 
-  // Debug function to log mesh visibility
-  const logMeshVisibility = () => {
-    const visibleMeshes = [];
-    groupRef.current.traverse((obj) => {
-      if (obj.isMesh && obj.visible) {
-        visibleMeshes.push(obj.name);
-      }
-    });
-    console.log('Visible meshes:', visibleMeshes);
-  };
+const CharacterPreview = forwardRef(({ selectedTraits, themeColor }, ref) => {
+  const [modelLoaded, setModelLoaded] = useState(false);
+  const [showLoadingModel, setShowLoadingModel] = useState(true);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const sceneRootRef = useRef();
 
-  function normalizeTraitId(traitType, traitId) {
-    // Removed the normalization for hat_over_headphones so that "larva mfer" stays as "larva mfer"
-    return traitId;
-  }
+  // Handle window resize
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Handle model loading sequence
+  const handleModelLoad = () => {
+    setModelLoaded(true);
+    // Wait a bit before hiding the loading model
+    setTimeout(() => {
+      setShowLoadingModel(false);
+    }, 1);  // Reduced to 1ms for almost immediate transition
+  };
 
   // Export functionality
   const exportScene = async () => {
-    if (!modelLoaded) return;
+    if (!modelLoaded || !sceneRootRef.current) return;
 
     // Create a new scene for the export
     const exportScene = new THREE.Scene();
@@ -497,15 +554,15 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor }, ref) => {
     <>
       <PerspectiveCamera 
         makeDefault 
-        position={[-0.5, 1.2, 2.0]} 
-        fov={35}
+        position={isMobile ? [-0.3, 1.2, 1.8] : [-0.5, 1.4, 2.0]} 
+        fov={isMobile ? 40 : 35}
       />
       
       <OrbitControls 
         enableZoom={true} 
-        enablePan={true}
-        minDistance={1.5}
-        maxDistance={3.0}
+        enablePan={false}
+        minDistance={isMobile ? 1.2 : 1.5}
+        maxDistance={isMobile ? 2.5 : 3.0}
         target={[0, 0.9, 0]}
         enableDamping={true}
         dampingFactor={0.05}
@@ -513,7 +570,16 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor }, ref) => {
         maxPolarAngle={Math.PI / 1.5}
         minAzimuthAngle={-Math.PI}
         maxAzimuthAngle={Math.PI}
-        rotateSpeed={0.7}
+        rotateSpeed={isMobile ? 0.5 : 0.7}
+        touches={{
+          ONE: THREE.TOUCH.ROTATE,
+          TWO: THREE.TOUCH.DOLLY_PAN
+        }}
+        mouseButtons={{
+          LEFT: THREE.MOUSE.ROTATE,
+          MIDDLE: THREE.MOUSE.DOLLY,
+          RIGHT: THREE.MOUSE.PAN
+        }}
       />
       
       <ambientLight intensity={0.3} />
@@ -559,12 +625,20 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor }, ref) => {
 
       <Environment preset="studio" />
       
-      <group ref={groupRef} />
+      <Suspense fallback={<LoadingModel />}>
+        {showLoadingModel && <LoadingModel />}
+        <MainModel 
+          selectedTraits={selectedTraits}
+          sceneRef={sceneRootRef}
+          onLoad={handleModelLoad}
+        />
+      </Suspense>
     </>
   );
 });
 
-// Preload the GLB file
+// Preload both GLB files immediately
+useGLTF.preload(LOADING_MODEL_URL);
 useGLTF.preload(GLB_URL);
 
 export default CharacterPreview; 

@@ -212,8 +212,10 @@ class CharacterCreator {
       type: 'plain',
       eyes: 'regular',
       mouth: 'smile',
-      background: 'blue',
-      headphones: 'white'  // Add default headphones
+      background: 'orange',
+      headphones: 'black',
+      smoke: 'cig_black',
+      watch: 'argo_white'
     };
     return this.selectedTraits;
   }

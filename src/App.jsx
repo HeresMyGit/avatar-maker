@@ -123,6 +123,10 @@ const CreatorContainer = styled.div`
   position: relative;
   overflow: hidden;
 
+  @media (max-width: 768px) {
+    flex-direction: column;
+  }
+
   &::before {
     content: '';
     position: absolute;
@@ -142,6 +146,13 @@ const PreviewSection = styled.div`
   border-right: 1px solid rgba(255, 255, 255, 0.07);
   overflow: hidden;
   ${props => getPreviewGradient(props)}
+
+  @media (max-width: 768px) {
+    flex: none;
+    height: 65vh;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
 `;
 
 const SelectorSection = styled.div`
@@ -155,6 +166,26 @@ const SelectorSection = styled.div`
   position: relative;
   z-index: 1;
   border-left: 1px solid rgba(255, 255, 255, 0.07);
+
+  @media (max-width: 768px) {
+    flex: none;
+    height: 35vh;
+    min-width: unset;
+    max-width: unset;
+    padding: 16px;
+    border-left: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    &::-webkit-scrollbar {
+      display: none;
+    }
+    
+    /* Hide scrollbar for IE, Edge and Firefox */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 
   &::-webkit-scrollbar {
     width: 10px;
@@ -181,6 +212,16 @@ const TopBar = styled.div`
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+
+  @media (max-width: 768px) {
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    flex-direction: column;
+    padding: 8px;
+    gap: 8px;
+    border-radius: 20px;
+  }
 `;
 
 const Button = styled.button`
@@ -202,6 +243,20 @@ const Button = styled.button`
   position: relative;
   overflow: hidden;
 
+  @media (max-width: 768px) {
+    padding: 12px;
+    font-size: 1.4em;
+    border-radius: 16px;
+    width: 48px;
+    height: 48px;
+    justify-content: center;
+
+    // Hide text on mobile, show only emoji
+    span:not(:first-child) {
+      display: none;
+    }
+  }
+
   &:disabled {
     background: rgba(255, 255, 255, 0.05);
     border-color: rgba(255, 255, 255, 0.05);
@@ -216,6 +271,10 @@ const Title = styled.div`
   text-align: center;
   position: relative;
 
+  @media (max-width: 768px) {
+    margin-bottom: 16px;
+  }
+
   &::after {
     content: '';
     position: absolute;
@@ -226,6 +285,11 @@ const Title = styled.div`
     height: 2px;
     background: ${props => props.themeColor}33;
     border-radius: 2px;
+
+    @media (max-width: 768px) {
+      bottom: -8px;
+      width: 40px;
+    }
   }
 `;
 
@@ -241,6 +305,10 @@ const MainTitle = styled.h1`
   animation: ${gradientMove} 4s linear infinite;
   letter-spacing: -0.5px;
   text-transform: none;
+
+  @media (max-width: 768px) {
+    font-size: 2.5em;
+  }
 `;
 
 const Subtitle = styled.p`
@@ -250,6 +318,11 @@ const Subtitle = styled.p`
   font-size: 1.6em;
   letter-spacing: 0;
   text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.2);
+
+  @media (max-width: 768px) {
+    font-size: 1.2em;
+    margin: 4px 0 0 0;
+  }
 `;
 
 const fadeIn = keyframes`
@@ -414,13 +487,15 @@ function Creator({ themeColor, setThemeColor }) {
             onClick={handleRandom}
             themeColor={themeColor}
           >
-            🎲 Random
+            <span>🎲</span>
+            <span>Random</span>
           </Button>
           <Button 
             variant="secondary"
             onClick={handleClearAll}
           >
-            ↺ Reset
+            <span>↺</span>
+            <span>Reset</span>
           </Button>
           <Button 
             variant="primary"
@@ -428,7 +503,8 @@ function Creator({ themeColor, setThemeColor }) {
             disabled={!hasSelectedTraits || isExporting}
             themeColor={themeColor}
           >
-            {isExporting ? '⏳ Exporting...' : '⬇️ Export'}
+            <span>{isExporting ? '⏳' : '⬇️'}</span>
+            <span>{isExporting ? 'Exporting...' : 'Export'}</span>
           </Button>
         </TopBar>
         <Canvas>
@@ -455,7 +531,7 @@ function Creator({ themeColor, setThemeColor }) {
 }
 
 function App() {
-  const [themeColor, setThemeColor] = useState('#6D28D9');
+  const [themeColor, setThemeColor] = useState('#feb66e');
 
   return (
     <Router basename="/avatar-maker">
