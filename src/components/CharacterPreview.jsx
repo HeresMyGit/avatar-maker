@@ -424,6 +424,7 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor }, ref) => {
   const [showLoadingModel, setShowLoadingModel] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const sceneRootRef = useRef();
+  const { gl, scene, camera } = useThree();
 
   // Handle window resize
   useEffect(() => {
@@ -442,6 +443,75 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor }, ref) => {
     setTimeout(() => {
       setShowLoadingModel(false);
     }, 1);  // Reduced to 1ms for almost immediate transition
+  };
+
+  // Screenshot functionality
+  const takeScreenshot = () => {
+    if (!modelLoaded || !sceneRootRef.current) return;
+
+    // Store current camera state
+    const originalPosition = camera.position.clone();
+    const originalRotation = camera.rotation.clone();
+    const originalFov = camera.fov;
+    const originalTarget = camera.target?.clone();
+
+    // Set camera to zoomed portrait position
+    let defaultPosition = isMobile ? 
+      new THREE.Vector3(-0.2, 1.0, 1.5) : // Further back and slightly lower for mobile
+      new THREE.Vector3(-0.3, 1.1, 1.65);  // Further back and slightly lower for desktop
+    
+    // Rotate the camera position 15 degrees counterclockwise around the Y axis
+    const angle = -Math.PI / 12; // -15 degrees in radians (negative for counterclockwise)
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const x = defaultPosition.x * cos + defaultPosition.z * sin;
+    const z = -defaultPosition.x * sin + defaultPosition.z * cos;
+    defaultPosition = new THREE.Vector3(x, defaultPosition.y, z);
+    
+    camera.position.copy(defaultPosition);
+    camera.fov = isMobile ? 35 : 30; // Tighter FOV for more zoom
+    camera.lookAt(0, 0.9, 0);
+    camera.updateProjectionMatrix(); // Required after FOV change
+
+    // Store current pixel ratio and set to 2 for better quality
+    const originalPixelRatio = window.devicePixelRatio;
+    gl.setPixelRatio(2);
+
+    // Store original clear color
+    const originalClearColor = gl.getClearColor(new THREE.Color());
+    const originalClearAlpha = gl.getClearAlpha();
+
+    // Create gradient colors based on theme
+    const gradientColor = new THREE.Color(themeColor);
+    const transparent = new THREE.Color('#000000');
+    
+    // Set clear color to match the preview gradient
+    gl.setClearColor(gradientColor, 0.6);
+
+    // Render scene
+    gl.render(scene, camera);
+
+    // Convert to image
+    const screenshot = gl.domElement.toDataURL('image/png');
+
+    // Restore all original settings
+    gl.setClearColor(originalClearColor, originalClearAlpha);
+    gl.setPixelRatio(originalPixelRatio);
+    camera.position.copy(originalPosition);
+    camera.rotation.copy(originalRotation);
+    camera.fov = originalFov;
+    camera.updateProjectionMatrix();
+    if (originalTarget) {
+      camera.target = originalTarget;
+    }
+
+    // Create download link
+    const link = document.createElement('a');
+    link.href = screenshot;
+    link.download = 'mfer-character.png';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Export functionality
@@ -545,9 +615,10 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor }, ref) => {
     }
   };
 
-  // Expose the exportScene method to the parent component
+  // Expose both exportScene and takeScreenshot methods to the parent component
   useImperativeHandle(ref, () => ({
-    exportScene
+    exportScene,
+    takeScreenshot
   }));
 
   return (

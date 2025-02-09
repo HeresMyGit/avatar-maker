@@ -91,6 +91,22 @@ const TopNavItem = styled.div`
   &:hover {
     opacity: 1;
   }
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    width: ${props => props.active ? '100%' : '0'};
+    height: 2px;
+    background: ${props => props.themeColor};
+    transform: translateX(-50%);
+    transition: all 0.3s ease;
+  }
+
+  &:hover::after {
+    width: 100%;
+  }
 `;
 
 const TopNavLink = styled(Link)`
@@ -394,6 +410,7 @@ const Layout = ({ children, themeColor, onThemeChange }) => {
                     key={item.label}
                     active={item.dropdownItems.some(dropItem => location.pathname === dropItem.path)}
                     onClick={() => setOpenDropdown(openDropdown === item.label ? null : item.label)}
+                    themeColor={themeColor}
                   >
                     {item.label}
                     <DropdownContent isOpen={openDropdown === item.label}>

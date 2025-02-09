@@ -439,6 +439,7 @@ function Creator({ themeColor, setThemeColor }) {
     return initialTraits;
   });
   const [isExporting, setIsExporting] = useState(false);
+  const [isTakingScreenshot, setIsTakingScreenshot] = useState(false);
   const previewRef = useRef();
 
   // Update theme color when background trait changes
@@ -462,6 +463,18 @@ function Creator({ themeColor, setThemeColor }) {
   const handleRandom = () => {
     const newTraits = characterCreatorRef.current.randomize();
     setSelectedTraits({ ...newTraits });
+  };
+
+  const handleScreenshot = async () => {
+    if (previewRef.current?.takeScreenshot) {
+      setIsTakingScreenshot(true);
+      try {
+        await previewRef.current.takeScreenshot();
+      } catch (error) {
+        console.error('Screenshot failed:', error);
+      }
+      setIsTakingScreenshot(false);
+    }
   };
 
   const handleExport = async () => {
@@ -496,6 +509,15 @@ function Creator({ themeColor, setThemeColor }) {
           >
             <span>↺</span>
             <span>Reset</span>
+          </Button>
+          <Button 
+            variant="primary"
+            onClick={handleScreenshot} 
+            disabled={!hasSelectedTraits || isTakingScreenshot}
+            themeColor={themeColor}
+          >
+            <span>{isTakingScreenshot ? '⏳' : '📸'}</span>
+            <span>{isTakingScreenshot ? 'Processing...' : 'Screenshot'}</span>
           </Button>
           <Button 
             variant="primary"
