@@ -512,6 +512,94 @@ const DropdownOption = styled.div`
   }
 `;
 
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: ${fadeIn} 0.3s ease;
+`;
+
+const ModalContent = styled.div`
+  background: rgba(20, 20, 25, 0.95);
+  border-radius: 24px;
+  padding: 32px;
+  max-width: 400px;
+  width: 90%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  position: relative;
+`;
+
+const ModalTitle = styled.h2`
+  font-family: 'SartoshiScript';
+  font-size: 2.5em;
+  margin: 0 0 24px 0;
+  text-align: center;
+  ${props => getTitleGradient(props)}
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+`;
+
+const PriceOption = styled.button`
+  width: 100%;
+  padding: 16px;
+  margin: 8px 0;
+  border-radius: 16px;
+  background: ${props => props.active ? `linear-gradient(135deg, ${props.themeColor}CC 0%, ${props.themeColor}99 100%)` : 'rgba(255, 255, 255, 0.05)'};
+  border: 1px solid ${props => props.active ? props.themeColor : 'rgba(255, 255, 255, 0.1)'};
+  color: white;
+  font-family: 'SartoshiScript';
+  font-size: 1.4em;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  &:hover {
+    transform: translateY(-2px);
+    background: ${props => props.active ? `linear-gradient(135deg, ${props.themeColor}EE 0%, ${props.themeColor}BB 100%)` : 'rgba(255, 255, 255, 0.08)'};
+    border-color: ${props => props.active ? props.themeColor : 'rgba(255, 255, 255, 0.15)'};
+  }
+
+  span:last-child {
+    opacity: 0.7;
+    font-size: 0.9em;
+  }
+`;
+
+const ModalButtons = styled.div`
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+`;
+
+const ModalButton = styled.button`
+  flex: 1;
+  padding: 16px;
+  border-radius: 16px;
+  font-family: 'SartoshiScript';
+  font-size: 1.4em;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  ${props => getButtonGradient(props)}
+  color: white;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+  }
+`;
+
 function Creator({ themeColor, setThemeColor }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -525,6 +613,8 @@ function Creator({ themeColor, setThemeColor }) {
   const [mintPrice, setMintPrice] = useState(null);
   const previewRef = useRef();
   const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [selectedPrice, setSelectedPrice] = useState(null);
 
   // Web3 hooks
   const { isConnected } = useAccount();
@@ -598,6 +688,20 @@ function Creator({ themeColor, setThemeColor }) {
       }
       setIsExporting(false);
     }
+  };
+
+  const handleMintClick = () => {
+    if (!isConnected) {
+      alert('Please connect your wallet first');
+      return;
+    }
+    setShowPriceModal(true);
+  };
+
+  const handleMintConfirm = async () => {
+    if (!selectedPrice) return;
+    setShowPriceModal(false);
+    await handleMint();
   };
 
   const handleMint = async () => {
@@ -716,13 +820,13 @@ function Creator({ themeColor, setThemeColor }) {
           </ExportDropdownContainer>
           <Button 
             variant="primary"
-            onClick={handleMint}
+            onClick={handleMintClick}
             disabled={!hasSelectedTraits || isMinting || !isConnected}
             themeColor={themeColor}
           >
             <span>⚡</span>
             <span>
-              {isMinting ? 'Minting...' : mintPrice ? `Mint (${formatEther(mintPrice)} ETH)` : 'Mint'}
+              {isMinting ? 'Minting...' : 'Mint'}
             </span>
           </Button>
         </TopBar>
@@ -745,6 +849,49 @@ function Creator({ themeColor, setThemeColor }) {
           themeColor={themeColor}
         />
       </SelectorSection>
+
+      {showPriceModal && (
+        <ModalOverlay onClick={() => setShowPriceModal(false)}>
+          <ModalContent onClick={e => e.stopPropagation()} themeColor={themeColor}>
+            <ModalTitle themeColor={themeColor}>Select Mint Price</ModalTitle>
+            <PriceOption
+              onClick={() => setSelectedPrice(mintPrice)}
+              active={selectedPrice === mintPrice}
+              themeColor={themeColor}
+            >
+              <span>ETH Price</span>
+              <span>{mintPrice ? `${formatEther(mintPrice)} ETH` : 'Loading...'}</span>
+            </PriceOption>
+            <PriceOption
+              onClick={() => setSelectedPrice('coming_soon')}
+              active={selectedPrice === 'coming_soon'}
+              themeColor={themeColor}
+              disabled
+              style={{ opacity: 0.5 }}
+            >
+              <span>Other Options</span>
+              <span>Coming Soon</span>
+            </PriceOption>
+            <ModalButtons>
+              <ModalButton
+                variant="secondary"
+                onClick={() => setShowPriceModal(false)}
+                themeColor={themeColor}
+              >
+                Cancel
+              </ModalButton>
+              <ModalButton
+                variant="primary"
+                onClick={handleMintConfirm}
+                disabled={!selectedPrice || selectedPrice === 'coming_soon'}
+                themeColor={themeColor}
+              >
+                Confirm
+              </ModalButton>
+            </ModalButtons>
+          </ModalContent>
+        </ModalOverlay>
+      )}
     </CreatorContainer>
   );
 }
