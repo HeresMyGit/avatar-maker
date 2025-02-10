@@ -32,7 +32,7 @@ export default defineConfig({
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
           three: ['three', '@react-three/fiber', '@react-three/drei'],
-          web3: ['wagmi', 'viem', '@web3modal/wagmi', '@web3modal/ethereum']
+          web3: ['wagmi', 'viem', '@web3modal/wagmi']
         }
       }
     }

@@ -5,7 +5,7 @@ import { keyframes } from '@emotion/react';
 import { COLOR_MAP } from '../config/colors';
 import { createWeb3Modal, defaultWagmiConfig } from '@web3modal/wagmi/react';
 import { WagmiConfig } from 'wagmi';
-import { mainnet, sepolia } from 'wagmi/chains';
+import { sepolia } from 'viem/chains';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Configure web3modal
@@ -20,7 +20,13 @@ const metadata = {
 
 // Use Sepolia for development, add mainnet for production
 const chains = [sepolia];
-const wagmiConfig = defaultWagmiConfig({ chains, projectId, metadata });
+
+const wagmiConfig = defaultWagmiConfig({ 
+  chains, 
+  projectId, 
+  metadata
+});
+
 const queryClient = new QueryClient();
 
 // Create modal
