@@ -427,6 +427,35 @@ const NavLink = styled(Link)`
   }
 `;
 
+const ExportDropdownContainer = styled.div`
+  position: relative;
+  display: inline-block;
+`;
+
+const ExportDropdown = styled.div`
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  display: ${props => props.show ? 'block' : 'none'};
+  z-index: 1000;
+  overflow: hidden;
+`;
+
+const DropdownOption = styled.div`
+  padding: 10px 20px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.2s;
+  color: #333;
+
+  &:hover {
+    background-color: ${props => `${props.themeColor}22`};
+  }
+`;
+
 function Creator({ themeColor, setThemeColor }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -437,6 +466,7 @@ function Creator({ themeColor, setThemeColor }) {
   const [isExporting, setIsExporting] = useState(false);
   const [isTakingScreenshot, setIsTakingScreenshot] = useState(false);
   const previewRef = useRef();
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
 
   // Initialize theme color
   useEffect(() => {
@@ -479,17 +509,30 @@ function Creator({ themeColor, setThemeColor }) {
     }
   };
 
-  const handleExport = async () => {
+  const handleExport = async (exportType) => {
     if (previewRef.current?.exportScene) {
       setIsExporting(true);
+      setShowExportDropdown(false);
       try {
-        await previewRef.current.exportScene();
+        await previewRef.current.exportScene(exportType);
       } catch (error) {
         console.error('Export failed:', error);
       }
       setIsExporting(false);
     }
   };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.export-dropdown')) {
+        setShowExportDropdown(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   const hasSelectedTraits = Object.values(selectedTraits).some(Boolean);
 
@@ -521,15 +564,31 @@ function Creator({ themeColor, setThemeColor }) {
             <span>{isTakingScreenshot ? '⏳' : '📸'}</span>
             <span>{isTakingScreenshot ? 'Processing...' : 'Screenshot'}</span>
           </Button>
-          <Button 
-            variant="primary"
-            onClick={handleExport} 
-            disabled={!hasSelectedTraits || isExporting}
-            themeColor={themeColor}
-          >
-            <span>{isExporting ? '⏳' : '⬇️'}</span>
-            <span>{isExporting ? 'Exporting...' : 'Export'}</span>
-          </Button>
+          <ExportDropdownContainer className="export-dropdown">
+            <Button 
+              variant="primary"
+              onClick={() => setShowExportDropdown(!showExportDropdown)} 
+              disabled={!hasSelectedTraits || isExporting}
+              themeColor={themeColor}
+            >
+              <span>{isExporting ? '⏳' : '⬇️'}</span>
+              <span>{isExporting ? 'Exporting...' : 'Export'}</span>
+            </Button>
+            <ExportDropdown show={showExportDropdown} themeColor={themeColor}>
+              <DropdownOption 
+                onClick={() => handleExport('animated')}
+                themeColor={themeColor}
+              >
+                Animated Model
+              </DropdownOption>
+              <DropdownOption 
+                onClick={() => handleExport('t-pose')}
+                themeColor={themeColor}
+              >
+                T-Pose Model
+              </DropdownOption>
+            </ExportDropdown>
+          </ExportDropdownContainer>
           <Button 
             variant="primary"
             onClick={() => {}} 

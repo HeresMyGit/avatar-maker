@@ -516,8 +516,8 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
   };
 
   // Export functionality
-  const exportScene = async () => {
-    console.log('Export started');
+  const exportScene = async (exportType = 'animated') => {
+    console.log('Export started:', exportType);
     
     if (!modelLoaded || !sceneRootRef.current) {
       console.warn('Model not fully loaded yet');
@@ -525,13 +525,13 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
     }
 
     try {
-      // Load the export version of the model
-      const { scene: exportModelScene } = await new Promise((resolve, reject) => {
+      // Load the appropriate version of the model based on export type
+      const modelUrl = exportType === 't-pose' ? EXPORT_GLB_URL : GLB_URL;
+      const { scene: exportModelScene, animations: loadedAnimations } = await new Promise((resolve, reject) => {
         const loader = new GLTFLoader();
         loader.load(
-          EXPORT_GLB_URL,
+          modelUrl,
           (gltf) => {
-            // Log full scene structure
             console.log('Full scene structure:');
             gltf.scene.traverse((node) => {
               console.log('Node:', node.name, 'Type:', node.type, 'Parent:', node.parent?.name);
@@ -566,15 +566,28 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
 
       console.log('Total visible meshes:', visibleMeshCount);
 
-      // Get animations from current scene
-      const animations = sceneRootRef.current.userData.animations || [];
-      console.log('Animations found:', animations.length);
+      // Get animations based on export type
+      let animations = [];
+      if (exportType === 'animated') {
+        // Use the loaded animations from the animated model
+        animations = loadedAnimations || [];
+        console.log('Loaded animations:', animations.length);
+        
+        // Log animation details
+        animations.forEach((anim, index) => {
+          console.log(`Animation ${index}:`, {
+            name: anim.name,
+            duration: anim.duration,
+            tracks: anim.tracks.length
+          });
+        });
+      }
 
       // Create an exporter with specific options
       const exporter = new GLTFExporter();
       const options = {
         binary: true,
-        animations: animations.map(anim => anim.clone()),
+        animations: animations,
         includeCustomExtensions: true,
         embedImages: true,
         onlyVisible: true,
@@ -603,7 +616,7 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'mfer-character.glb';
+      link.download = `mfer-character-${exportType}.glb`;
       document.body.appendChild(link);
       link.click();
       
