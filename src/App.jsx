@@ -669,7 +669,17 @@ function Creator({ themeColor, setThemeColor }) {
     if (previewRef.current?.takeScreenshot) {
       setIsTakingScreenshot(true);
       try {
-        await previewRef.current.takeScreenshot();
+        const blob = await previewRef.current.takeScreenshot();
+        if (blob) {
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'mfer-avatar.png';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        }
       } catch (error) {
         console.error('Screenshot failed:', error);
       }
@@ -682,7 +692,18 @@ function Creator({ themeColor, setThemeColor }) {
       setIsExporting(true);
       setShowExportDropdown(false);
       try {
-        await previewRef.current.exportScene(exportType);
+        const gltfData = await previewRef.current.exportScene(exportType);
+        if (gltfData) {
+          const blob = new Blob([gltfData], { type: 'model/gltf-binary' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `mfer-avatar-${exportType}.glb`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        }
       } catch (error) {
         console.error('Export failed:', error);
       }
