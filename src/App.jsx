@@ -208,13 +208,13 @@ const TopBar = styled.div`
   right: 30px;
   z-index: 10;
   display: flex;
-  gap: 12px;
-  background: rgba(0, 0, 0, 0.3);
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(20px);
-  padding: 16px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  padding: 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 
   @media (max-width: 768px) {
     top: 50%;
@@ -228,35 +228,82 @@ const TopBar = styled.div`
 `;
 
 const Button = styled.button`
-  ${props => getButtonGradient(props)}
   font-family: 'SartoshiScript';
   color: white;
-  padding: 14px 28px;
-  border-radius: 12px;
+  padding: 12px;
+  border-radius: 16px;
   cursor: pointer;
-  font-size: 1.8em;
+  font-size: 1.6em;
   font-weight: 400;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px ${props => props.themeColor}22;
   text-transform: none;
   letter-spacing: 0;
   position: relative;
   overflow: hidden;
+  min-width: 70px;
+  background: linear-gradient(135deg, ${props => props.themeColor}33 0%, ${props => props.themeColor}22 100%);
+  border: 1px solid ${props => props.themeColor}44;
+  box-shadow: 0 4px 12px ${props => props.themeColor}22;
+
+  span:first-of-type {
+    font-size: 1.4em;
+    margin-bottom: -2px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+  }
+
+  span:last-of-type {
+    font-size: 0.9em;
+    opacity: 0.9;
+  }
+
+  &:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, ${props => props.themeColor}66 0%, ${props => props.themeColor}44 100%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-radius: 15px;
+  }
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: ${props => props.themeColor}88;
+    box-shadow: 0 8px 24px ${props => props.themeColor}44;
+
+    &:before {
+      opacity: 1;
+    }
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
 
   @media (max-width: 768px) {
-    padding: 12px;
+    padding: 10px;
     font-size: 1.4em;
-    border-radius: 16px;
-    width: 48px;
-    height: 48px;
+    border-radius: 14px;
+    width: 44px;
+    height: 44px;
+    min-width: unset;
     justify-content: center;
+
+    span:first-of-type {
+      font-size: 1.2em;
+      margin: 0;
+    }
 
     // Hide text on mobile, show only emoji
     span:not(:first-of-type) {
-      margin-left: 8px;
+      display: none;
     }
   }
 
@@ -266,6 +313,11 @@ const Button = styled.button`
     cursor: not-allowed;
     transform: none;
     box-shadow: none;
+    opacity: 0.5;
+
+    &:before {
+      display: none;
+    }
   }
 `;
 
@@ -606,8 +658,8 @@ function Creator({ themeColor, setThemeColor }) {
             <span>Random</span>
           </Button>
           <Button 
-            variant="secondary"
             onClick={handleClearAll}
+            themeColor={themeColor}
           >
             <span>↺</span>
             <span>Reset</span>
