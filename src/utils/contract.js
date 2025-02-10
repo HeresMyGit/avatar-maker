@@ -45,12 +45,15 @@ export const mintNFT = async (walletClient, metadataUri) => {
       throw new Error('Wallet client not initialized');
     }
 
+    // Get the current mint price from the contract
+    const price = await getMintPrice(walletClient);
+
     const hash = await walletClient.writeContract({
       address: CONTRACT_ADDRESS,
       abi: CONTRACT_ABI,
       functionName: 'mint',
       args: [metadataUri],
-      value: parseEther('0.1'), // Default price is 0.1 ETH
+      value: price, // Use the dynamic price from contract
       chainId: sepolia.id
     });
 

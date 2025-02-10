@@ -18,7 +18,8 @@ import { COLOR_MAP } from './config/colors';
 import CharacterCreator from './components/CharacterCreator';
 import { generateMetadata, saveAndUpload } from './utils/minting';
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
-import { mintNFT } from './utils/contract';
+import { mintNFT, getMintPrice } from './utils/contract';
+import { formatEther } from 'viem';
 
 const gradientMove = keyframes`
   0% { background-position: 0% 50%; }
@@ -521,6 +522,7 @@ function Creator({ themeColor, setThemeColor }) {
   const [isExporting, setIsExporting] = useState(false);
   const [isTakingScreenshot, setIsTakingScreenshot] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
+  const [mintPrice, setMintPrice] = useState(null);
   const previewRef = useRef();
   const [showExportDropdown, setShowExportDropdown] = useState(false);
 
@@ -528,6 +530,21 @@ function Creator({ themeColor, setThemeColor }) {
   const { isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
+
+  // Fetch mint price when component mounts
+  useEffect(() => {
+    const fetchMintPrice = async () => {
+      if (publicClient) {
+        try {
+          const price = await getMintPrice(publicClient);
+          setMintPrice(price);
+        } catch (error) {
+          console.error('Error fetching mint price:', error);
+        }
+      }
+    };
+    fetchMintPrice();
+  }, [publicClient]);
 
   // Initialize theme color
   useEffect(() => {
@@ -670,47 +687,42 @@ function Creator({ themeColor, setThemeColor }) {
             disabled={!hasSelectedTraits || isTakingScreenshot}
             themeColor={themeColor}
           >
-            <span>{isTakingScreenshot ? '⏳' : '📸'}</span>
-            <span>{isTakingScreenshot ? 'Processing...' : 'Screenshot'}</span>
+            <span>📸</span>
+            <span>Screenshot</span>
           </Button>
           <ExportDropdownContainer className="export-dropdown">
             <Button 
-              variant="primary"
-              onClick={() => setShowExportDropdown(!showExportDropdown)} 
+              onClick={() => setShowExportDropdown(!showExportDropdown)}
               disabled={!hasSelectedTraits || isExporting}
               themeColor={themeColor}
             >
-              <span>{isExporting ? '⏳' : '⬇️'}</span>
-              <span>{isExporting ? 'Exporting...' : 'Export'}</span>
+              <span>💾</span>
+              <span>Export</span>
             </Button>
-            <ExportDropdown show={showExportDropdown} themeColor={themeColor}>
+            <ExportDropdown show={showExportDropdown}>
               <DropdownOption 
                 onClick={() => handleExport('animated')}
                 themeColor={themeColor}
               >
-                Animated Model
+                Animated GLB
               </DropdownOption>
               <DropdownOption 
                 onClick={() => handleExport('t-pose')}
                 themeColor={themeColor}
               >
-                T-Pose Model
+                T-Pose GLB
               </DropdownOption>
             </ExportDropdown>
           </ExportDropdownContainer>
           <Button 
             variant="primary"
-            onClick={handleMint} 
-            disabled={!hasSelectedTraits || isTakingScreenshot || isExporting || isMinting || !isConnected}
+            onClick={handleMint}
+            disabled={!hasSelectedTraits || isMinting || !isConnected}
             themeColor={themeColor}
           >
-            <span>{isTakingScreenshot || isExporting || isMinting ? '⏳' : '🔗'}</span>
+            <span>⚡</span>
             <span>
-              {isTakingScreenshot ? 'Processing...' : 
-               isExporting ? 'Exporting...' : 
-               isMinting ? 'Minting...' : 
-               !isConnected ? 'Connect Wallet' : 
-               'Mint (0.1 ETH)'}
+              {isMinting ? 'Minting...' : mintPrice ? `Mint (${formatEther(mintPrice)} ETH)` : 'Mint'}
             </span>
           </Button>
         </TopBar>
