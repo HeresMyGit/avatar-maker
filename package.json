@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.744.0",
+    "@aws-sdk/s3-request-presigner": "^3.744.0",
     "@emotion/react": "^11.11.3",
     "@emotion/styled": "^11.11.0",
     "@google/model-viewer": "^4.0.0",

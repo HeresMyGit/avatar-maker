@@ -16,6 +16,7 @@ import { css, keyframes } from '@emotion/react';
 import { useNavigate } from 'react-router-dom';
 import { COLOR_MAP } from './config/colors';
 import CharacterCreator from './components/CharacterCreator';
+import { generateMetadata, saveAndUpload } from './utils/minting';
 
 const gradientMove = keyframes`
   0% { background-position: 0% 50%; }
@@ -522,6 +523,32 @@ function Creator({ themeColor, setThemeColor }) {
     }
   };
 
+  const handleMint = async () => {
+    if (!previewRef.current) return;
+
+    try {
+      // Take screenshot
+      setIsTakingScreenshot(true);
+      const imageBlob = await previewRef.current.takeScreenshot();
+      setIsTakingScreenshot(false);
+
+      // Export GLB files
+      setIsExporting(true);
+      const animatedGlb = await previewRef.current.exportScene('animated');
+      const tposeGlb = await previewRef.current.exportScene('t-pose');
+      setIsExporting(false);
+
+      // Upload files to Digital Ocean Space
+      const result = await saveAndUpload(imageBlob, animatedGlb, tposeGlb, selectedTraits);
+      console.log('Upload successful:', result);
+
+    } catch (error) {
+      console.error('Error during minting process:', error);
+      setIsTakingScreenshot(false);
+      setIsExporting(false);
+    }
+  };
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -591,12 +618,12 @@ function Creator({ themeColor, setThemeColor }) {
           </ExportDropdownContainer>
           <Button 
             variant="primary"
-            onClick={() => {}} 
-            disabled={!hasSelectedTraits}
+            onClick={handleMint} 
+            disabled={!hasSelectedTraits || isTakingScreenshot || isExporting}
             themeColor={themeColor}
           >
-            <span>🔗</span>
-            <span>Mint</span>
+            <span>{isTakingScreenshot || isExporting ? '⏳' : '🔗'}</span>
+            <span>{isTakingScreenshot ? 'Processing...' : isExporting ? 'Exporting...' : 'Mint'}</span>
           </Button>
         </TopBar>
         <Canvas>
