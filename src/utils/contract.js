@@ -39,14 +39,14 @@ export const getMintPrice = async (publicClient) => {
 };
 
 // Function to mint NFT
-export const mintNFT = async (walletClient, metadataUri) => {
+export const mintNFT = async (walletClient, publicClient, metadataUri) => {
   try {
     if (!walletClient) {
       throw new Error('Wallet client not initialized');
     }
 
-    // Get the current mint price from the contract
-    const price = await getMintPrice(walletClient);
+    // Get the current mint price from the contract using publicClient
+    const price = await getMintPrice(publicClient);
 
     const hash = await walletClient.writeContract({
       address: CONTRACT_ADDRESS,

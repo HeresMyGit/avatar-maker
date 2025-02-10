@@ -622,7 +622,7 @@ function Creator({ themeColor, setThemeColor }) {
       const tempMetadataBlob = new Blob([JSON.stringify(tempMetadata)], { type: 'application/json' });
 
       // Mint NFT first to get the token ID
-      const hash = await mintNFT(walletClient, tempMetadataBlob);
+      const hash = await mintNFT(walletClient, publicClient, tempMetadataBlob);
       console.log('Mint transaction:', hash);
 
       // Wait for transaction confirmation
