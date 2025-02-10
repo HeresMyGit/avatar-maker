@@ -30,11 +30,19 @@ jobs:
           node-version: 18
           cache: 'npm'
       
-      - name: Install dependencies
-        run: npm install
+      - name: Clean install dependencies
+        run: |
+          npm cache clean --force
+          npm install --no-package-lock
       
       - name: Build
         run: npm run build
+        env:
+          VITE_WALLETCONNECT_PROJECT_ID: ${{ secrets.VITE_WALLETCONNECT_PROJECT_ID }}
+          VITE_CONTRACT_ADDRESS: ${{ secrets.VITE_CONTRACT_ADDRESS }}
+          VITE_DO_SPACES_BUCKET: ${{ secrets.VITE_DO_SPACES_BUCKET }}
+          VITE_DO_SPACES_KEY: ${{ secrets.VITE_DO_SPACES_KEY }}
+          VITE_DO_SPACES_SECRET: ${{ secrets.VITE_DO_SPACES_SECRET }}
       
       - name: Setup Pages
         uses: actions/configure-pages@v4

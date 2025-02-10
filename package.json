@@ -26,7 +26,7 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^7.1.5",
     "styled-components": "^6.1.15",
-    "three": "^0.161.0",
+    "three": "^0.169.0",
     "viem": "^2.22.22",
     "wagmi": "^2.14.11"
   },
