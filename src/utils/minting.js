@@ -1,5 +1,6 @@
 // Utility functions for minting NFTs
 import { uploadToSpace } from './storage';
+import { COLOR_MAP } from '../config/colors';
 
 // Helper function to format trait values for metadata
 const formatTraitValue = (traitType, value) => {
@@ -44,14 +45,14 @@ export const generateMetadata = (selectedTraits, tokenId) => {
     }));
 
   return {
+    attributes,
     name: `mfer avatar maker #${tokenId}`,
     description: "mfer avatar maker by heresmy.eth, inspired by sartoshi",
     animation_url: "", // Will be updated with DO URL
     image: "", // Will be updated with DO URL
     external_url: `https://ar.mferavatars.xyz/details.html?id=${tokenId}&maker=true`,
-    background_color: selectedTraits.background || "ffffff",
-    glb_url: "", // Will be updated with DO URL
-    attributes
+    background_color: selectedTraits.background ? COLOR_MAP[selectedTraits.background] : "ffffff",
+    glb_url: "" // Will be updated with DO URL
   };
 };
 
@@ -65,36 +66,25 @@ const generateFolderName = () => {
 };
 
 // Function to save files and upload to Digital Ocean Space
-export const saveAndUpload = async (imageBlob, animatedGlb, tposeGlb, selectedTraits) => {
+export const saveAndUpload = async (imageBlob, animatedGlb, tposeGlb, selectedTraits, tokenId) => {
   try {
-    // Generate a token ID from timestamp
-    const tokenId = Date.now().toString();
-    
     // Generate metadata with the token ID
     const metadata = generateMetadata(selectedTraits, tokenId);
 
-    // Mock the URLs that would come from DO Space
-    const mockUrls = {
-      imageUrl: `https://example.com/image/${tokenId}.png`,
-      animatedUrl: `https://example.com/animated/${tokenId}.glb`,
-      tposeUrl: `https://example.com/tpose/${tokenId}.glb`
-    };
-
-    // Update metadata with mock URLs
-    const updatedMetadata = {
-      ...metadata,
-      image: mockUrls.imageUrl,
-      animation_url: mockUrls.animatedUrl,
-      glb_url: mockUrls.tposeUrl
-    };
+    // Upload all files to Digital Ocean Space
+    const result = await uploadToSpace(imageBlob, animatedGlb, tposeGlb, metadata, tokenId);
 
     return {
       tokenId,
-      urls: mockUrls,
-      metadata: updatedMetadata
+      urls: {
+        imageUrl: result.imageUrl,
+        animatedUrl: result.animatedUrl,
+        tposeUrl: result.tposeUrl
+      },
+      metadata: result.metadata
     };
   } catch (error) {
-    console.error('Error during mock upload:', error);
+    console.error('Error during file upload:', error);
     throw error;
   }
 }; 

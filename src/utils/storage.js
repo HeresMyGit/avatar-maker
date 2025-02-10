@@ -42,16 +42,16 @@ const uploadFile = async (file, path, contentType) => {
 // Upload all minting files to Digital Ocean Space
 export const uploadToSpace = async (imageBlob, animatedGlb, tposeGlb, metadata, tokenId) => {
   try {
-    // Upload preview image with the same naming pattern as the working URL
-    const imagePath = `/public/assets/png/mfer-${tokenId}-preview.png`;
+    // Upload preview image
+    const imagePath = `/maker/public/assets/png/${tokenId}.png`;
     const imageUrl = await uploadFile(imageBlob, imagePath, 'image/png');
 
     // Upload animated GLB
-    const animatedPath = `/public/assets/glb/mfer-${tokenId}.glb`;
+    const animatedPath = `/maker/public/assets/glb/${tokenId}.glb`;
     const animatedUrl = await uploadFile(animatedGlb, animatedPath, 'model/gltf-binary');
 
     // Upload T-pose GLB
-    const tposePath = `/public/assets/glb/mfer-${tokenId}-tpose.glb`;
+    const tposePath = `/maker/public/assets/glb/${tokenId}-tpose.glb`;
     const tposeUrl = await uploadFile(tposeGlb, tposePath, 'model/gltf-binary');
 
     // Update metadata with URLs
@@ -63,7 +63,7 @@ export const uploadToSpace = async (imageBlob, animatedGlb, tposeGlb, metadata, 
     };
 
     // Upload metadata
-    const metadataPath = `/public/metadata/mfer-${tokenId}.json`;
+    const metadataPath = `/maker/public/metadata/${tokenId}.json`;
     const metadataBlob = new Blob([JSON.stringify(updatedMetadata, null, 2)], { type: 'application/json' });
     await uploadFile(metadataBlob, metadataPath, 'application/json');
 

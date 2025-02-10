@@ -543,20 +543,33 @@ function Creator({ themeColor, setThemeColor }) {
 
       setIsMinting(true);
 
-      // Skip file processing and use mock data
-      const result = await saveAndUpload(null, null, null, selectedTraits);
-      console.log('Mock upload data:', result);
+      // Take screenshot and export models
+      const imageBlob = await previewRef.current.takeScreenshot();
+      const animatedGlb = await previewRef.current.exportScene('animated');
+      const tposeGlb = await previewRef.current.exportScene('t-pose');
 
-      // Mint NFT
-      const hash = await mintNFT(walletClient, result.metadata.external_url);
+      // Generate temporary metadata for the contract call
+      const tempMetadata = generateMetadata(selectedTraits, '0');
+      const tempMetadataBlob = new Blob([JSON.stringify(tempMetadata)], { type: 'application/json' });
+
+      // Mint NFT first to get the token ID
+      const hash = await mintNFT(walletClient, tempMetadataBlob);
       console.log('Mint transaction:', hash);
 
       // Wait for transaction confirmation
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       console.log('Mint confirmed:', receipt);
 
+      // Get the token ID from the mint event
+      const tokenId = receipt.logs[0].topics[3];
+      const numericTokenId = parseInt(tokenId, 16).toString();
+
+      // Now upload files with the correct token ID
+      const result = await saveAndUpload(imageBlob, animatedGlb, tposeGlb, selectedTraits, numericTokenId);
+      console.log('Upload complete:', result);
+
       // Navigate to details page
-      navigate(`/details?id=${result.tokenId}&needsMint=false`);
+      navigate(`/details?id=${numericTokenId}`);
 
     } catch (error) {
       console.error('Error during minting process:', error);
