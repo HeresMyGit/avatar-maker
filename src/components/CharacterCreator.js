@@ -20,7 +20,12 @@ class CharacterCreator {
       const isHoodieOver = hatOver.includes('hoodie');
       const isBandanaOrBeanieUnder = hatUnder.includes('bandana') || hatUnder.includes('beanie');
       
-      if (!isHoodieOver || !isBandanaOrBeanieUnder) {
+      // New Rule: If wearing a hoodie up, don't allow beanies
+      if (isHoodieOver && hatUnder.includes('beanie')) {
+        delete traits.hat_under_headphones;
+      }
+      // Original rule for other hat conflicts
+      else if (!isHoodieOver || !isBandanaOrBeanieUnder) {
         Math.random() > 0.5 ? delete traits.hat_over_headphones : delete traits.hat_under_headphones;
       }
     }
@@ -28,6 +33,11 @@ class CharacterCreator {
     // Rule 2: Incompatibility of Hair Lengths
     if (isRandomGeneration && traits.short_hair && traits.long_hair) {
       Math.random() > 0.5 ? delete traits.short_hair : delete traits.long_hair;
+    }
+
+    // New Rule: Ape Type - No Long Hair
+    if (traits.type === 'ape') {
+      delete traits.long_hair;
     }
 
     // Rule 3: Shirt/Hoodie Versus Chain Conflict
@@ -165,7 +175,7 @@ class CharacterCreator {
     // Start with mandatory traits
     const traits = {
       background: getRandomItem(TRAIT_CATEGORIES.background.options).id,
-      type: getRandomItem(TRAIT_CATEGORIES.type.options).id,
+      type: this.getRandomType(),
       // Filter out special eye types for random selection
       eyes: getRandomItem(TRAIT_CATEGORIES.eyes.options.filter(eye => 
         !['metal', 'mfercoin', 'zombie', 'alien'].includes(eye.id)
@@ -174,18 +184,30 @@ class CharacterCreator {
       headphones: getRandomItem(TRAIT_CATEGORIES.headphones.options).id
     };
 
-    // Add optional traits with 50% chance each
+    // Add optional traits with 20% chance each, except shoes and gloves
     const optionalCategories = Object.entries(TRAIT_CATEGORIES)
       .filter(([key]) => !['background', 'type', 'eyes', 'mouth', 'headphones'].includes(key));
 
     optionalCategories.forEach(([category, data]) => {
-      if (Math.random() > 0.5) {
+      const chance = (category === 'shoes' || category === 'gloves') ? 0.95 : 0.8;
+      if (Math.random() > chance) { // 5% chance for shoes and gloves, 20% for others
         traits[category] = getRandomItem(data.options).id;
       }
     });
 
     // Apply rules to ensure valid combinations, with isRandomGeneration = true
     return this.applyTraitRules(traits, true);
+  }
+
+  getRandomType() {
+    const randomValue = Math.random() * 100;
+    if (randomValue < 30) return 'plain';
+    if (randomValue < 60) return 'charcoal';
+    if (randomValue < 74) return 'zombie';
+    if (randomValue < 86) return 'ape';
+    if (randomValue < 96) return 'alien';
+    if (randomValue < 98) return 'based';
+    return 'metal';
   }
 
   // Get theme color based on selected background

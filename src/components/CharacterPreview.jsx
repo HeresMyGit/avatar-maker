@@ -6,22 +6,27 @@ import { TRAIT_CATEGORIES } from '../config/traits';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import styled from '@emotion/styled';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 
 const GLB_URL = "https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/builders/mfermashup.glb";
+const EXPORT_GLB_URL = "https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/builders/mfermashup-t.glb";
 const LOADING_MODEL_URL = "/avatar-maker/sartoshi-head.glb";
 
-const LoadingText = styled.div`
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, 50%);
-  font-family: 'SartoshiScript';
-  font-size: 2em;
-  color: white;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-  z-index: 100;
-  pointer-events: none;
-`;
+// Instead, use Text component from @react-three/drei for 3D text
+const LoadingText = ({ children }) => (
+  <Text
+    position={[0, 0.4, 0]}
+    fontSize={0.3}
+    color="white"
+    anchorX="center"
+    anchorY="middle"
+    font="/avatar-maker/SartoshiScript-Regular.otf"
+    outlineWidth={0.02}
+    outlineColor="black"
+  >
+    {children}
+  </Text>
+);
 
 // Helper function to normalize trait IDs
 const normalizeTraitId = (traitType, traitId) => {
@@ -269,18 +274,7 @@ const LoadingModel = () => {
   return (
     <>
       <group ref={loadingGroupRef} />
-      <Text
-        position={[0, 0.4, 0]}
-        fontSize={0.3}
-        color="white"
-        anchorX="center"
-        anchorY="middle"
-        font="/avatar-maker/SartoshiScript-Regular.otf"
-        outlineWidth={0.02}
-        outlineColor="black"
-      >
-        loading...
-      </Text>
+      <LoadingText>loading...</LoadingText>
     </>
   );
 };
@@ -290,6 +284,13 @@ const MainModel = ({ selectedTraits, onLoad, sceneRef }) => {
   const groupRef = useRef();
   const { scene, animations } = useGLTF(GLB_URL);
   const animationRef = useRef();
+
+  // Store animations in sceneRef for export
+  useEffect(() => {
+    if (sceneRef.current && animations) {
+      sceneRef.current.userData.animations = animations;
+    }
+  }, [animations, sceneRef]);
 
   // Function to update mesh visibility based on selected traits
   const updateMeshVisibility = () => {
@@ -419,7 +420,7 @@ const MainModel = ({ selectedTraits, onLoad, sceneRef }) => {
   return <group ref={groupRef} />;
 };
 
-const CharacterPreview = forwardRef(({ selectedTraits, themeColor }, ref) => {
+const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor }, ref) => {
   const [modelLoaded, setModelLoaded] = useState(false);
   const [showLoadingModel, setShowLoadingModel] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -482,7 +483,7 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor }, ref) => {
     const originalClearAlpha = gl.getClearAlpha();
 
     // Create gradient colors based on theme
-    const gradientColor = new THREE.Color(themeColor);
+    const gradientColor = new THREE.Color(themecolor);
     const transparent = new THREE.Color('#000000');
     
     // Set clear color to match the preview gradient
@@ -516,80 +517,88 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor }, ref) => {
 
   // Export functionality
   const exportScene = async () => {
-    if (!modelLoaded || !sceneRootRef.current) return;
-
-    // Create a new scene for the export
-    const exportScene = new THREE.Scene();
+    console.log('Export started');
     
-    // Clone the current state using SkeletonUtils
-    const clonedScene = SkeletonUtils.clone(sceneRootRef.current);
-    
-    // List of objects to remove (both invisible meshes and unwanted objects)
-    const objectsToRemove = [];
-    
-    // First pass: mark objects for removal and calculate bounds
-    const box = new THREE.Box3();
-    clonedScene.traverse((obj) => {
-      // Remove invisible meshes
-      if (obj.isMesh && !obj.visible) {
-        objectsToRemove.push(obj);
-      }
-      // Remove unwanted objects (1/1s and other non-mesh objects)
-      // We keep only: meshes, bones, skeletons, and specific required objects
-      if (!obj.isMesh && !obj.isBone && !obj.isSkinnedMesh && !obj.isSkeletonHelper &&
-          obj.name && ['bloom', 'creyzie', 'jungle_bay', 'jungle_bay_head', 'larva_mfer', 
-                      'megapurr', 'megapurr_head', 'minnie', 'minnie_head', 'noun', 
-                      'oncyber', 'oncyber_head'].includes(obj.name)) {
-        objectsToRemove.push(obj);
-      }
-
-      // Include object in bounds calculation if it's a mesh or bone
-      if (obj.isMesh || obj.isBone) {
-        box.expandByObject(obj);
-      }
-    });
-
-    // Second pass: remove marked objects
-    objectsToRemove.forEach((obj) => {
-      if (obj.parent) {
-        obj.parent.remove(obj);
-      }
-    });
-
-    // Calculate the center of the model
-    const center = new THREE.Vector3();
-    box.getCenter(center);
-
-    // Create a container to offset the model
-    const container = new THREE.Group();
-    container.position.set(-center.x, -center.y, -center.z);
-    container.add(clonedScene);
-    exportScene.add(container);
-
-    // Clone animations
-    const exportAnimations = animations.map(anim => anim.clone());
-
-    // Create an exporter with specific options
-    const exporter = new GLTFExporter();
-    const options = {
-      binary: true,
-      animations: exportAnimations,
-      includeCustomExtensions: true,
-      embedImages: true,
-      onlyVisible: true
-    };
+    if (!modelLoaded || !sceneRootRef.current) {
+      console.warn('Model not fully loaded yet');
+      return;
+    }
 
     try {
+      // Load the export version of the model
+      const { scene: exportModelScene } = await new Promise((resolve, reject) => {
+        const loader = new GLTFLoader();
+        loader.load(
+          EXPORT_GLB_URL,
+          (gltf) => {
+            // Log full scene structure
+            console.log('Full scene structure:');
+            gltf.scene.traverse((node) => {
+              console.log('Node:', node.name, 'Type:', node.type, 'Parent:', node.parent?.name);
+            });
+            resolve(gltf);
+          },
+          undefined,
+          (error) => reject(error)
+        );
+      });
+
+      // Get the list of visible meshes from current scene
+      const visibleMeshes = new Set();
+      sceneRootRef.current.traverse((obj) => {
+        if (obj.isMesh && obj.visible) {
+          visibleMeshes.add(obj.name);
+          console.log('Adding visible mesh:', obj.name);
+        }
+      });
+
+      // Apply visibility to export scene
+      let visibleMeshCount = 0;
+      exportModelScene.traverse((node) => {
+        if (node.isMesh) {
+          node.visible = visibleMeshes.has(node.name);
+          if (node.visible) {
+            visibleMeshCount++;
+            console.log('Setting mesh visible:', node.name);
+          }
+        }
+      });
+
+      console.log('Total visible meshes:', visibleMeshCount);
+
+      // Get animations from current scene
+      const animations = sceneRootRef.current.userData.animations || [];
+      console.log('Animations found:', animations.length);
+
+      // Create an exporter with specific options
+      const exporter = new GLTFExporter();
+      const options = {
+        binary: true,
+        animations: animations.map(anim => anim.clone()),
+        includeCustomExtensions: true,
+        embedImages: true,
+        onlyVisible: true,
+        forceIndices: true,
+        truncateDrawRange: false
+      };
+
+      console.log('Starting GLTFExporter parse');
       const gltfData = await new Promise((resolve, reject) => {
         exporter.parse(
-          exportScene,
-          (gltf) => resolve(gltf),
-          (error) => reject(error),
+          exportModelScene,
+          (gltf) => {
+            console.log('GLTFExporter parse successful');
+            resolve(gltf);
+          },
+          (error) => {
+            console.error('GLTFExporter parse failed:', error);
+            reject(error);
+          },
           options
         );
       });
 
-      // Create a blob and download link
+      console.log('Creating download blob');
       const blob = new Blob([gltfData], { type: 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -598,17 +607,12 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor }, ref) => {
       document.body.appendChild(link);
       link.click();
       
-      // Wait a moment before cleanup to ensure download starts
+      // Cleanup
       setTimeout(() => {
-        link.remove();
+        document.body.removeChild(link);
         URL.revokeObjectURL(url);
       }, 100);
 
-      // Cleanup scene
-      exportScene.traverse((obj) => {
-        if (obj.geometry) obj.geometry.dispose();
-        if (obj.material) obj.material.dispose();
-      });
     } catch (error) {
       console.error('Export failed:', error);
       throw error;
@@ -691,7 +695,7 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor }, ref) => {
         angle={Math.PI / 3}
         penumbra={0.8}
         distance={5}
-        color={themeColor}
+        color={themecolor}
       />
 
       <Environment preset="studio" />

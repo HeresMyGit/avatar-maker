@@ -252,8 +252,8 @@ const Button = styled.button`
     justify-content: center;
 
     // Hide text on mobile, show only emoji
-    span:not(:first-child) {
-      display: none;
+    span:not(:first-of-type) {
+      margin-left: 8px;
     }
   }
 
@@ -432,15 +432,17 @@ function Creator({ themeColor, setThemeColor }) {
   const location = useLocation();
   const characterCreatorRef = useRef(new CharacterCreator());
   const [selectedTraits, setSelectedTraits] = useState(() => {
-    const initialTraits = characterCreatorRef.current.getSelectedTraits();
-    // Set initial theme color based on the randomly generated background
-    const initialThemeColor = characterCreatorRef.current.getThemeColor(initialTraits);
-    setThemeColor(initialThemeColor);
-    return initialTraits;
+    return characterCreatorRef.current.getSelectedTraits();
   });
   const [isExporting, setIsExporting] = useState(false);
   const [isTakingScreenshot, setIsTakingScreenshot] = useState(false);
   const previewRef = useRef();
+
+  // Initialize theme color
+  useEffect(() => {
+    const initialThemeColor = characterCreatorRef.current.getThemeColor(selectedTraits);
+    setThemeColor(initialThemeColor);
+  }, []);
 
   // Update theme color when background trait changes
   useEffect(() => {
@@ -527,6 +529,15 @@ function Creator({ themeColor, setThemeColor }) {
           >
             <span>{isExporting ? '⏳' : '⬇️'}</span>
             <span>{isExporting ? 'Exporting...' : 'Export'}</span>
+          </Button>
+          <Button 
+            variant="primary"
+            onClick={() => {}} 
+            disabled={!hasSelectedTraits}
+            themeColor={themeColor}
+          >
+            <span>🔗</span>
+            <span>Mint</span>
           </Button>
         </TopBar>
         <Canvas>
