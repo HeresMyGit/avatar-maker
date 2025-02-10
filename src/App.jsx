@@ -17,6 +17,8 @@ import { useNavigate } from 'react-router-dom';
 import { COLOR_MAP } from './config/colors';
 import CharacterCreator from './components/CharacterCreator';
 import { generateMetadata, saveAndUpload } from './utils/minting';
+import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
+import { mintNFT } from './utils/contract';
 
 const gradientMove = keyframes`
   0% { background-position: 0% 50%; }
@@ -466,8 +468,14 @@ function Creator({ themeColor, setThemeColor }) {
   });
   const [isExporting, setIsExporting] = useState(false);
   const [isTakingScreenshot, setIsTakingScreenshot] = useState(false);
+  const [isMinting, setIsMinting] = useState(false);
   const previewRef = useRef();
   const [showExportDropdown, setShowExportDropdown] = useState(false);
+
+  // Web3 hooks
+  const { isConnected } = useAccount();
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
 
   // Initialize theme color
   useEffect(() => {
@@ -527,25 +535,34 @@ function Creator({ themeColor, setThemeColor }) {
     if (!previewRef.current) return;
 
     try {
-      // Take screenshot
-      setIsTakingScreenshot(true);
-      const imageBlob = await previewRef.current.takeScreenshot();
-      setIsTakingScreenshot(false);
+      // Check wallet connection
+      if (!isConnected) {
+        alert('Please connect your wallet first');
+        return;
+      }
 
-      // Export GLB files
-      setIsExporting(true);
-      const animatedGlb = await previewRef.current.exportScene('animated');
-      const tposeGlb = await previewRef.current.exportScene('t-pose');
-      setIsExporting(false);
+      setIsMinting(true);
 
-      // Upload files to Digital Ocean Space
-      const result = await saveAndUpload(imageBlob, animatedGlb, tposeGlb, selectedTraits);
-      console.log('Upload successful:', result);
+      // Skip file processing and use mock data
+      const result = await saveAndUpload(null, null, null, selectedTraits);
+      console.log('Mock upload data:', result);
+
+      // Mint NFT
+      const hash = await mintNFT(walletClient, result.metadata.external_url);
+      console.log('Mint transaction:', hash);
+
+      // Wait for transaction confirmation
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      console.log('Mint confirmed:', receipt);
+
+      // Navigate to details page
+      navigate(`/details?id=${result.tokenId}&needsMint=false`);
 
     } catch (error) {
       console.error('Error during minting process:', error);
-      setIsTakingScreenshot(false);
-      setIsExporting(false);
+      alert('Error during minting process. Please try again.');
+    } finally {
+      setIsMinting(false);
     }
   };
 
@@ -619,11 +636,17 @@ function Creator({ themeColor, setThemeColor }) {
           <Button 
             variant="primary"
             onClick={handleMint} 
-            disabled={!hasSelectedTraits || isTakingScreenshot || isExporting}
+            disabled={!hasSelectedTraits || isTakingScreenshot || isExporting || isMinting || !isConnected}
             themeColor={themeColor}
           >
-            <span>{isTakingScreenshot || isExporting ? '⏳' : '🔗'}</span>
-            <span>{isTakingScreenshot ? 'Processing...' : isExporting ? 'Exporting...' : 'Mint'}</span>
+            <span>{isTakingScreenshot || isExporting || isMinting ? '⏳' : '🔗'}</span>
+            <span>
+              {isTakingScreenshot ? 'Processing...' : 
+               isExporting ? 'Exporting...' : 
+               isMinting ? 'Minting...' : 
+               !isConnected ? 'Connect Wallet' : 
+               'Mint (0.1 ETH)'}
+            </span>
           </Button>
         </TopBar>
         <Canvas>

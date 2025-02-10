@@ -5,11 +5,11 @@ import { keyframes } from '@emotion/react';
 import { COLOR_MAP } from '../config/colors';
 import { createWeb3Modal, defaultWagmiConfig } from '@web3modal/wagmi/react';
 import { WagmiConfig } from 'wagmi';
-import { mainnet } from 'wagmi/chains';
+import { mainnet, sepolia } from 'wagmi/chains';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Configure web3modal
-const projectId = 'YOUR_WALLETCONNECT_PROJECT_ID'; // You'll need to get this from https://cloud.walletconnect.com
+const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
 
 const metadata = {
   name: 'mfer Avatars',
@@ -18,7 +18,8 @@ const metadata = {
   icons: ['https://avatars.githubusercontent.com/u/37784886']
 };
 
-const chains = [mainnet];
+// Use Sepolia for development, add mainnet for production
+const chains = [sepolia];
 const wagmiConfig = defaultWagmiConfig({ chains, projectId, metadata });
 const queryClient = new QueryClient();
 

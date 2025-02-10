@@ -73,26 +73,28 @@ export const saveAndUpload = async (imageBlob, animatedGlb, tposeGlb, selectedTr
     // Generate metadata with the token ID
     const metadata = generateMetadata(selectedTraits, tokenId);
 
-    // Upload files to Digital Ocean Space
-    const { imageUrl, animatedUrl, tposeUrl, metadata: updatedMetadata } = await uploadToSpace(
-      imageBlob,
-      animatedGlb,
-      tposeGlb,
-      metadata,
-      tokenId
-    );
+    // Mock the URLs that would come from DO Space
+    const mockUrls = {
+      imageUrl: `https://example.com/image/${tokenId}.png`,
+      animatedUrl: `https://example.com/animated/${tokenId}.glb`,
+      tposeUrl: `https://example.com/tpose/${tokenId}.glb`
+    };
+
+    // Update metadata with mock URLs
+    const updatedMetadata = {
+      ...metadata,
+      image: mockUrls.imageUrl,
+      animation_url: mockUrls.animatedUrl,
+      glb_url: mockUrls.tposeUrl
+    };
 
     return {
       tokenId,
-      urls: {
-        image: imageUrl,
-        animated: animatedUrl,
-        tpose: tposeUrl
-      },
+      urls: mockUrls,
       metadata: updatedMetadata
     };
   } catch (error) {
-    console.error('Error during save and upload:', error);
+    console.error('Error during mock upload:', error);
     throw error;
   }
 }; 
