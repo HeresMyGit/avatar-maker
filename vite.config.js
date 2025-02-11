@@ -25,6 +25,11 @@ export default defineConfig({
       '*.ngrok-free.app'
     ]
   },
+  resolve: {
+    alias: {
+      'use-sync-external-store/shim/with-selector': 'use-sync-external-store/shim/with-selector.js'
+    }
+  },
   build: {
     outDir: 'dist',
     commonjsOptions: {
@@ -38,11 +43,15 @@ export default defineConfig({
           three: ['three', '@react-three/fiber', '@react-three/drei'],
           web3: ['wagmi', 'viem', '@web3modal/wagmi']
         }
-      },
-      external: ['use-sync-external-store/shim/with-selector.js']
+      }
     },
     optimizeDeps: {
-      include: ['@web3modal/wagmi', 'wagmi', 'viem']
+      include: [
+        '@web3modal/wagmi', 
+        'wagmi', 
+        'viem',
+        'use-sync-external-store/shim/with-selector.js'
+      ]
     }
   }
 }) 
