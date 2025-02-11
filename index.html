@@ -5,13 +5,16 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>mfer Character Creator</title>
+    <base href="/avatar-maker/" />
     <!-- Handle SPA redirects for GitHub Pages -->
     <script type="text/javascript">
       (function() {
-        const redirect = sessionStorage.redirect;
-        delete sessionStorage.redirect;
-        if (redirect && redirect !== location.href) {
-          history.replaceState(null, null, redirect);
+        // Check if we need to redirect
+        const path = sessionStorage.getItem('path');
+        if (path) {
+          sessionStorage.removeItem('path');
+          // Use history API to set the correct path
+          window.history.replaceState(null, null, path);
         }
       })();
     </script>

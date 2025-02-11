@@ -1009,12 +1009,9 @@ function Creator({ themeColor, setThemeColor }) {
 
 function App() {
   const [themeColor, setThemeColor] = useState('#feb66e');
-  
-  // Get the base URL from the environment or default to /avatar-maker
-  const baseUrl = import.meta.env.BASE_URL || '/avatar-maker';
 
   return (
-    <Router basename={baseUrl}>
+    <Router basename="/avatar-maker">
       <Routes>
         <Route path="/" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Home themeColor={themeColor} /></Layout>} />
         <Route path="/creator" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Creator themeColor={themeColor} setThemeColor={setThemeColor} /></Layout>} />

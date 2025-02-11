@@ -8,36 +8,27 @@
       // MIT License
       // https://github.com/rafgraph/spa-github-pages
       (function(l) {
-        if (l.search[1] === '/' ) {
+        if (l.search[1] === '/') {
           var decoded = l.search.slice(1).split('&').map(function(s) { 
             return s.replace(/~and~/g, '&')
           }).join('?');
           window.history.replaceState(null, null,
-              l.pathname.slice(0, -1) + decoded + l.hash
+            l.pathname.slice(0, -1) + decoded + l.hash
           );
         }
-      }(window.location))
-    </script>
-    <script>
-      const pathSegmentsToKeep = 1; // Change this number based on your repo name (avatar-maker = 1)
-      
-      const redirect = sessionStorage.redirect;
-      delete sessionStorage.redirect;
-      if (redirect && redirect !== location.href) {
-        history.replaceState(null, null, redirect);
-      }
+      }(window.location));
 
-      const l = window.location;
-      const path = l.pathname.split('/').slice(pathSegmentsToKeep + 1).join('/');
-      const redirectPath = l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
-        '/' + l.pathname.split('/').slice(1, pathSegmentsToKeep + 1).join('/') + '/?/' +
-        path + l.search + l.hash;
-
-      sessionStorage.redirect = redirectPath;
-      window.location.replace(redirectPath);
+      // Save the path to sessionStorage
+      (function(location) {
+        const path = location.pathname.split('/avatar-maker')[1] || '/';
+        sessionStorage.setItem('path', path);
+        
+        // Redirect to the index page
+        window.location.replace('/avatar-maker/');
+      }(window.location));
     </script>
   </head>
   <body>
-    Redirecting to Avatar Maker...
+    <p>Redirecting to Avatar Maker...</p>
   </body>
 </html> 
