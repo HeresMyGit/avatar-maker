@@ -20,6 +20,7 @@ import { generateMetadata } from './utils/minting';
 import { uploadToSpace, renameFilesAfterMint } from './utils/storage';
 import { getProvider, getSigner, getMintPrice, mintNFT, getContract } from './utils/contract';
 import { formatEther } from 'ethers';
+import LoadingOverlay from './components/LoadingOverlay';
 
 const gradientMove = keyframes`
   0% { background-position: 0% 50%; }
@@ -612,13 +613,36 @@ const ErrorMessage = styled.div`
   border-radius: 8px;
   z-index: 1000;
   backdrop-filter: blur(10px);
-  max-width: 80%;
-  text-align: center;
+  max-width: 90%;
+  width: fit-content;
+  text-align: left;
   font-family: 'SartoshiScript';
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   
   &::before {
     content: '⚠️';
     margin-right: 8px;
+    flex-shrink: 0;
+  }
+`;
+
+const CloseButton = styled.button`
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.2em;
+  cursor: pointer;
+  padding: 4px;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+  flex-shrink: 0;
+  line-height: 1;
+  margin-left: auto;
+  
+  &:hover {
+    opacity: 1;
   }
 `;
 
@@ -921,138 +945,142 @@ function Creator({ themeColor, setThemeColor }) {
   const hasSelectedTraits = Object.values(selectedTraits).some(Boolean);
 
   return (
-    <CreatorContainer themeColor={themeColor}>
-      <PreviewSection themeColor={themeColor}>
-        <TopBar>
-          <Button 
-            variant="fun"
-            onClick={handleRandom}
-            themeColor={themeColor}
-          >
-            <span>🎲</span>
-            <span>Random</span>
-          </Button>
-          <Button 
-            onClick={handleClearAll}
-            themeColor={themeColor}
-          >
-            <span>↺</span>
-            <span>Reset</span>
-          </Button>
-          <Button 
-            variant="primary"
-            onClick={handleScreenshot} 
-            disabled={!hasSelectedTraits || isTakingScreenshot}
-            themeColor={themeColor}
-          >
-            <span>📸</span>
-            <span>Screenshot</span>
-          </Button>
-          <ExportDropdownContainer className="export-dropdown">
+    <>
+      <LoadingOverlay isVisible={isMinting} />
+      <CreatorContainer themeColor={themeColor}>
+        <PreviewSection themeColor={themeColor}>
+          <TopBar>
             <Button 
-              onClick={() => setShowExportDropdown(!showExportDropdown)}
-              disabled={!hasSelectedTraits || isExporting}
+              variant="fun"
+              onClick={handleRandom}
               themeColor={themeColor}
             >
-              <span>💾</span>
-              <span>Export</span>
+              <span>🎲</span>
+              <span>Random</span>
             </Button>
-            <ExportDropdown show={showExportDropdown}>
-              <DropdownOption 
-                onClick={() => handleExport('animated')}
+            <Button 
+              onClick={handleClearAll}
+              themeColor={themeColor}
+            >
+              <span>↺</span>
+              <span>Reset</span>
+            </Button>
+            <Button 
+              variant="primary"
+              onClick={handleScreenshot} 
+              disabled={!hasSelectedTraits || isTakingScreenshot}
+              themeColor={themeColor}
+            >
+              <span>📸</span>
+              <span>Screenshot</span>
+            </Button>
+            <ExportDropdownContainer className="export-dropdown">
+              <Button 
+                onClick={() => setShowExportDropdown(!showExportDropdown)}
+                disabled={!hasSelectedTraits || isExporting}
                 themeColor={themeColor}
               >
-                Animated GLB
-              </DropdownOption>
-              <DropdownOption 
-                onClick={() => handleExport('t-pose')}
-                themeColor={themeColor}
-              >
-                T-Pose GLB
-              </DropdownOption>
-            </ExportDropdown>
-          </ExportDropdownContainer>
-          <Button 
-            variant="primary"
-            onClick={handleMintClick}
-            disabled={!hasSelectedTraits || isMinting || !account}
-            themeColor={themeColor}
-          >
-            <span>⚡</span>
-            <span>
-              {isMinting ? 'Minting...' : 'Mint'}
-            </span>
-          </Button>
-        </TopBar>
-        <Canvas>
-          <CharacterPreview 
-            ref={previewRef}
+                <span>💾</span>
+                <span>Export</span>
+              </Button>
+              <ExportDropdown show={showExportDropdown}>
+                <DropdownOption 
+                  onClick={() => handleExport('animated')}
+                  themeColor={themeColor}
+                >
+                  Animated GLB
+                </DropdownOption>
+                <DropdownOption 
+                  onClick={() => handleExport('t-pose')}
+                  themeColor={themeColor}
+                >
+                  T-Pose GLB
+                </DropdownOption>
+              </ExportDropdown>
+            </ExportDropdownContainer>
+            <Button 
+              variant="primary"
+              onClick={handleMintClick}
+              disabled={!hasSelectedTraits || isMinting || !account}
+              themeColor={themeColor}
+            >
+              <span>⚡</span>
+              <span>
+                {isMinting ? 'Minting...' : 'Mint'}
+              </span>
+            </Button>
+          </TopBar>
+          <Canvas>
+            <CharacterPreview 
+              ref={previewRef}
+              selectedTraits={selectedTraits} 
+              themeColor={themeColor}
+            />
+          </Canvas>
+        </PreviewSection>
+        <SelectorSection themeColor={themeColor}>
+          <Title>
+            <MainTitle themeColor={themeColor}>mfer Creator</MainTitle>
+            <Subtitle>Build your unique character</Subtitle>
+          </Title>
+          <TraitSelector 
             selectedTraits={selectedTraits} 
+            onTraitChange={handleTraitChange}
             themeColor={themeColor}
           />
-        </Canvas>
-      </PreviewSection>
-      <SelectorSection themeColor={themeColor}>
-        <Title>
-          <MainTitle themeColor={themeColor}>mfer Creator</MainTitle>
-          <Subtitle>Build your unique character</Subtitle>
-        </Title>
-        <TraitSelector 
-          selectedTraits={selectedTraits} 
-          onTraitChange={handleTraitChange}
-          themeColor={themeColor}
-        />
-      </SelectorSection>
+        </SelectorSection>
 
-      {showPriceModal && (
-        <ModalOverlay onClick={() => setShowPriceModal(false)}>
-          <ModalContent onClick={e => e.stopPropagation()} themeColor={themeColor}>
-            <ModalTitle themeColor={themeColor}>Select Mint Price</ModalTitle>
-            <PriceOption
-              onClick={() => setSelectedPrice(mintPrice)}
-              active={selectedPrice === mintPrice}
-              themeColor={themeColor}
-            >
-              <span>ETH Price</span>
-              <span>{mintPrice ? `${formatEther(mintPrice)} ETH` : 'Loading...'}</span>
-            </PriceOption>
-            <PriceOption
-              onClick={() => setSelectedPrice('coming_soon')}
-              active={selectedPrice === 'coming_soon'}
-              themeColor={themeColor}
-              disabled
-              style={{ opacity: 0.5 }}
-            >
-              <span>Other Options</span>
-              <span>Coming Soon</span>
-            </PriceOption>
-            <ModalButtons>
-              <ModalButton
-                variant="secondary"
-                onClick={() => setShowPriceModal(false)}
+        {showPriceModal && (
+          <ModalOverlay onClick={() => setShowPriceModal(false)}>
+            <ModalContent onClick={e => e.stopPropagation()} themeColor={themeColor}>
+              <ModalTitle themeColor={themeColor}>Select Mint Price</ModalTitle>
+              <PriceOption
+                onClick={() => setSelectedPrice(mintPrice)}
+                active={selectedPrice === mintPrice}
                 themeColor={themeColor}
               >
-                Cancel
-              </ModalButton>
-              <ModalButton
-                variant="primary"
-                onClick={handleMintConfirm}
-                disabled={!selectedPrice || selectedPrice === 'coming_soon'}
+                <span>ETH Price</span>
+                <span>{mintPrice ? `${formatEther(mintPrice)} ETH` : 'Loading...'}</span>
+              </PriceOption>
+              <PriceOption
+                onClick={() => setSelectedPrice('coming_soon')}
+                active={selectedPrice === 'coming_soon'}
                 themeColor={themeColor}
+                disabled
+                style={{ opacity: 0.5 }}
               >
-                Confirm
-              </ModalButton>
-            </ModalButtons>
-          </ModalContent>
-        </ModalOverlay>
-      )}
+                <span>Other Options</span>
+                <span>Coming Soon</span>
+              </PriceOption>
+              <ModalButtons>
+                <ModalButton
+                  variant="secondary"
+                  onClick={() => setShowPriceModal(false)}
+                  themeColor={themeColor}
+                >
+                  Cancel
+                </ModalButton>
+                <ModalButton
+                  variant="primary"
+                  onClick={handleMintConfirm}
+                  disabled={!selectedPrice || selectedPrice === 'coming_soon'}
+                  themeColor={themeColor}
+                >
+                  Confirm
+                </ModalButton>
+              </ModalButtons>
+            </ModalContent>
+          </ModalOverlay>
+        )}
 
-      {mintError && (
-        <ErrorMessage themeColor={themeColor}>
-          {mintError}
-        </ErrorMessage>
-      )}
-    </CreatorContainer>
+        {mintError && (
+          <ErrorMessage themeColor={themeColor}>
+            <div style={{ wordBreak: 'break-word', flex: 1 }}>{mintError}</div>
+            <CloseButton onClick={() => setMintError(null)}>✕</CloseButton>
+          </ErrorMessage>
+        )}
+      </CreatorContainer>
+    </>
   );
 }
 
