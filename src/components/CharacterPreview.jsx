@@ -661,24 +661,63 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
     },
 
     exportScene: async (exportType = 'animated') => {
+      console.log(`Starting export process for type: ${exportType}`);
       if (!modelLoaded || !sceneRootRef.current) {
-        console.warn('Model not fully loaded yet');
+        console.warn('Model not fully loaded yet', { modelLoaded, sceneRef: !!sceneRootRef.current });
         return null;
       }
 
       try {
         // Load the appropriate version of the model based on export type
         const modelUrl = exportType === 't-pose' ? EXPORT_GLB_URL : GLB_URL;
-        const { scene: exportModelScene, animations: loadedAnimations } = await new Promise((resolve, reject) => {
+        console.log('Loading model from URL:', modelUrl);
+
+        const loadedModel = await new Promise((resolve, reject) => {
           const loader = new GLTFLoader();
-          loader.load(
-            modelUrl,
-            (gltf) => resolve(gltf),
-            undefined,
-            (error) => reject(error)
-          );
+          let retryCount = 0;
+          const MAX_LOAD_RETRIES = 3;
+          
+          const attemptLoad = () => {
+            console.log(`Loading model attempt ${retryCount + 1}/${MAX_LOAD_RETRIES}`);
+            loader.load(
+              modelUrl,
+              (gltf) => {
+                console.log('Model loaded successfully:', {
+                  hasScene: !!gltf.scene,
+                  animationCount: gltf.animations?.length || 0
+                });
+                resolve(gltf);
+              },
+              (progress) => {
+                const percent = (progress.loaded / progress.total * 100);
+                // Only log at start, 33%, 66%, and completion
+                if (progress.loaded === 0) {
+                  console.log('Starting model download...');
+                } else if (percent >= 33 && percent < 34) {
+                  console.log('Download progress: 33%');
+                } else if (percent >= 66 && percent < 67) {
+                  console.log('Download progress: 66%');
+                } else if (percent === 100) {
+                  console.log('Download complete');
+                }
+              },
+              (error) => {
+                console.error(`Error loading model (attempt ${retryCount + 1}):`, error);
+                if (retryCount < MAX_LOAD_RETRIES - 1) {
+                  retryCount++;
+                  console.log(`Retrying in 1 second...`);
+                  setTimeout(attemptLoad, 1000);
+                } else {
+                  reject(error);
+                }
+              }
+            );
+          };
+
+          attemptLoad();
         });
 
+        console.log('Getting visible meshes from current scene');
         // Get the list of visible meshes from current scene
         const visibleMeshes = new Set();
         sceneRootRef.current.traverse((obj) => {
@@ -686,21 +725,42 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
             visibleMeshes.add(obj.name);
           }
         });
+        console.log('Visible meshes:', Array.from(visibleMeshes));
 
         // Apply visibility to export scene
-        exportModelScene.traverse((node) => {
+        console.log('Applying visibility to export scene');
+        loadedModel.scene.traverse((node) => {
           if (node.isMesh) {
             node.visible = visibleMeshes.has(node.name);
+            if (node.visible) {
+              console.log('Set visible:', node.name);
+            }
           }
         });
 
-        // Get animations based on export type
+        // Get animations based on export type, with error handling
         let animations = [];
-        if (exportType === 'animated') {
-          animations = loadedAnimations || [];
+        if (exportType === 'animated' && loadedModel.animations) {
+          console.log('Processing animations:', {
+            count: loadedModel.animations.length,
+            names: loadedModel.animations.map(a => a.name)
+          });
+          
+          // Use the original animations instead of cloning
+          animations = loadedModel.animations;
+          
+          if (animations.length === 0) {
+            console.warn('No animations found in the model');
+          } else {
+            console.log('Successfully loaded animations:', {
+              count: animations.length,
+              names: animations.map(a => a.name)
+            });
+          }
         }
 
         // Create an exporter with specific options
+        console.log('Creating GLTFExporter');
         const exporter = new GLTFExporter();
         const options = {
           binary: true,
@@ -711,17 +771,41 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
           forceIndices: true,
           truncateDrawRange: false
         };
+        console.log('Export options:', options);
 
         return new Promise((resolve, reject) => {
-          exporter.parse(
-            exportModelScene,
-            (gltfData) => resolve(gltfData),
-            (error) => reject(error),
-            options
-          );
+          console.log('Starting export...');
+          let exportRetryCount = 0;
+          const MAX_EXPORT_RETRIES = 3;
+
+          const attemptExport = () => {
+            exporter.parse(
+              loadedModel.scene,
+              (gltfData) => {
+                console.log('Export successful:', {
+                  dataSize: gltfData.byteLength,
+                  type: typeof gltfData
+                });
+                resolve(gltfData);
+              },
+              (error) => {
+                console.error(`Export failed (attempt ${exportRetryCount + 1}):`, error);
+                if (exportRetryCount < MAX_EXPORT_RETRIES - 1) {
+                  exportRetryCount++;
+                  console.log('Retrying export...');
+                  setTimeout(attemptExport, 1000);
+                } else {
+                  reject(error);
+                }
+              },
+              options
+            );
+          };
+
+          attemptExport();
         });
       } catch (error) {
-        console.error('Error exporting scene:', error);
+        console.error('Error in exportScene:', error);
         throw error;
       }
     }

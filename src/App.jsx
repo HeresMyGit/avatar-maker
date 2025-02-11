@@ -773,26 +773,47 @@ function Creator({ themeColor, setThemeColor }) {
   };
 
   const handleExport = async (exportType) => {
+    console.log(`Starting handleExport for type: ${exportType}`);
     if (previewRef.current?.exportScene) {
       setIsExporting(true);
       setShowExportDropdown(false);
       try {
+        console.log('Calling exportScene...');
         const gltfData = await previewRef.current.exportScene(exportType);
+        console.log('Received gltfData:', {
+          hasData: !!gltfData,
+          type: typeof gltfData,
+          size: gltfData?.byteLength
+        });
+
         if (gltfData) {
+          console.log('Creating Blob...');
           const blob = new Blob([gltfData], { type: 'model/gltf-binary' });
+          console.log('Blob created:', {
+            size: blob.size,
+            type: blob.type
+          });
+
           const url = window.URL.createObjectURL(blob);
+          console.log('Created object URL:', url);
+
           const a = document.createElement('a');
           a.href = url;
           a.download = `mfer-avatar-${exportType}.glb`;
           document.body.appendChild(a);
+          console.log('Triggering download...');
           a.click();
           document.body.removeChild(a);
           window.URL.revokeObjectURL(url);
+          console.log('Export completed successfully');
         }
       } catch (error) {
         console.error('Export failed:', error);
+        console.error('Error stack:', error.stack);
       }
       setIsExporting(false);
+    } else {
+      console.warn('exportScene not available on previewRef');
     }
   };
 
@@ -832,12 +853,16 @@ function Creator({ themeColor, setThemeColor }) {
 
       // Take screenshot and export GLB files
       const imageBlob = await previewRef.current.takeScreenshot();
-      const animatedGlb = await previewRef.current.exportScene('animated');
-      const tposeGlb = await previewRef.current.exportScene('tpose');
+      const animatedGlbData = await previewRef.current.exportScene('animated');
+      const tposeGlbData = await previewRef.current.exportScene('t-pose');
 
-      if (!imageBlob || !animatedGlb || !tposeGlb) {
+      if (!imageBlob || !animatedGlbData || !tposeGlbData) {
         throw new Error('Failed to generate model files');
       }
+
+      // Convert GLB data to Blobs
+      const animatedGlb = new Blob([animatedGlbData], { type: 'model/gltf-binary' });
+      const tposeGlb = new Blob([tposeGlbData], { type: 'model/gltf-binary' });
 
       // Generate metadata
       const metadata = generateMetadata(selectedTraits, tempTokenId);
