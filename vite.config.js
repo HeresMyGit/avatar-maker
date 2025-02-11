@@ -27,6 +27,10 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    commonjsOptions: {
+      include: [/node_modules/],
+      transformMixedEsModules: true
+    },
     rollupOptions: {
       output: {
         manualChunks: {
@@ -34,7 +38,11 @@ export default defineConfig({
           three: ['three', '@react-three/fiber', '@react-three/drei'],
           web3: ['wagmi', 'viem', '@web3modal/wagmi']
         }
-      }
+      },
+      external: ['use-sync-external-store/shim/with-selector.js']
+    },
+    optimizeDeps: {
+      include: ['@web3modal/wagmi', 'wagmi', 'viem']
     }
   }
 }) 

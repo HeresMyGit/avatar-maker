@@ -28,6 +28,7 @@
     "react-router-dom": "^7.1.5",
     "styled-components": "^6.1.15",
     "three": "^0.169.0",
+    "use-sync-external-store": "^1.2.0",
     "viem": "^1.21.4",
     "wagmi": "^1.4.13"
   },
@@ -40,5 +41,9 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
     "vite": "^5.0.8"
+  },
+  "resolutions": {
+    "use-sync-external-store": "^1.2.0",
+    "zustand": "^4.5.0"
   }
 }
