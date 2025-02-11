@@ -18,23 +18,8 @@ import { COLOR_MAP } from './config/colors';
 import CharacterCreator from './components/CharacterCreator';
 import { generateMetadata } from './utils/minting';
 import { uploadToSpace, renameFilesAfterMint } from './utils/storage';
-import { WalletConnectModal } from '@walletconnect/modal';
 import { getProvider, getSigner, getMintPrice, mintNFT, getContract } from './utils/contract';
 import { formatEther } from 'ethers';
-
-// Configure WalletConnect
-const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
-
-// Initialize WalletConnect Modal
-const modal = new WalletConnectModal({
-  projectId,
-  themeMode: 'dark',
-  themeVariables: {
-    '--wcm-font-family': 'SartoshiScript',
-    '--wcm-background-color': '#13151a',
-    '--wcm-accent-color': '#feb66e'
-  }
-});
 
 const gradientMove = keyframes`
   0% { background-position: 0% 50%; }
@@ -814,7 +799,7 @@ function Creator({ themeColor, setThemeColor }) {
   const handleMintClick = async () => {
     if (!account) {
       try {
-        await modal.open();
+        await handleConnectWallet();
       } catch (error) {
         console.error('Error connecting wallet:', error);
         setMintError('Failed to connect wallet: ' + error.message);
@@ -1045,6 +1030,28 @@ function Creator({ themeColor, setThemeColor }) {
     </CreatorContainer>
   );
 }
+
+const handleConnectWallet = async () => {
+  try {
+    // Check if MetaMask is installed
+    if (!window.ethereum) {
+      alert('Please install MetaMask to connect your wallet');
+      return;
+    }
+
+    // Request account access
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    const account = accounts[0];
+    console.log('Connected account:', account);
+    
+    // Get the signer
+    const signer = await getSigner();
+    return signer;
+  } catch (error) {
+    console.error('Error connecting wallet:', error);
+    alert('Error connecting wallet. Please try again.');
+  }
+};
 
 function App() {
   const [themeColor, setThemeColor] = useState('#feb66e');

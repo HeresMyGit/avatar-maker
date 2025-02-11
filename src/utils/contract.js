@@ -159,7 +159,7 @@ export const getSigner = async () => {
       throw new Error('No provider available');
     }
     console.log('Getting signer from provider...');
-    return provider.getSigner();
+    return await provider.getSigner();
   } catch (error) {
     console.error('Error getting signer:', error);
     throw error;

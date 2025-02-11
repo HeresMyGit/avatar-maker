@@ -3,29 +3,8 @@ import { Link, useLocation } from 'react-router-dom';
 import styled from '@emotion/styled';
 import { keyframes } from '@emotion/react';
 import { COLOR_MAP } from '../config/colors';
-import { WalletConnectModal } from '@walletconnect/modal';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-
-// Configure WalletConnect
-const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
-
-const metadata = {
-  name: 'mfer Avatars',
-  description: 'View your mfer avatars',
-  url: window.location.origin,
-  icons: ['https://avatars.githubusercontent.com/u/37784886']
-};
-
-// Initialize WalletConnect Modal
-const modal = new WalletConnectModal({
-  projectId,
-  themeMode: 'dark',
-  themeVariables: {
-    '--wcm-font-family': 'SartoshiScript',
-    '--wcm-background-color': '#13151a',
-    '--wcm-accent-color': '#feb66e'
-  }
-});
+import { getProvider, getSigner } from '../utils/contract';
 
 const queryClient = new QueryClient();
 
@@ -403,9 +382,23 @@ const Layout = ({ children, themeColor, onThemeChange }) => {
 
   const handleConnect = async () => {
     try {
-      await modal.open();
+      // Check if MetaMask is installed
+      if (!window.ethereum) {
+        alert('Please install MetaMask to connect your wallet');
+        return;
+      }
+
+      // Request account access
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const account = accounts[0];
+      console.log('Connected account:', account);
+      
+      // Get the signer
+      const signer = await getSigner();
+      return signer;
     } catch (error) {
       console.error('Error connecting wallet:', error);
+      alert('Error connecting wallet. Please try again.');
     }
   };
 
