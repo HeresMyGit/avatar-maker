@@ -17,9 +17,23 @@ import { useNavigate } from 'react-router-dom';
 import { COLOR_MAP } from './config/colors';
 import CharacterCreator from './components/CharacterCreator';
 import { generateMetadata, saveAndUpload } from './utils/minting';
-import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
-import { mintNFT, getMintPrice } from './utils/contract';
-import { formatEther } from 'viem';
+import { WalletConnectModal } from '@walletconnect/modal';
+import { getProvider, getSigner, getMintPrice, mintNFT } from './utils/contract';
+import { formatEther } from 'ethers';
+
+// Configure WalletConnect
+const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
+
+// Initialize WalletConnect Modal
+const modal = new WalletConnectModal({
+  projectId,
+  themeMode: 'dark',
+  themeVariables: {
+    '--wcm-font-family': 'SartoshiScript',
+    '--wcm-background-color': '#13151a',
+    '--wcm-accent-color': '#feb66e'
+  }
+});
 
 const gradientMove = keyframes`
   0% { background-position: 0% 50%; }
@@ -600,6 +614,28 @@ const ModalButton = styled.button`
   }
 `;
 
+const ErrorMessage = styled.div`
+  position: fixed;
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 0, 0, 0.1);
+  border: 1px solid rgba(255, 0, 0, 0.3);
+  color: white;
+  padding: 1rem;
+  border-radius: 8px;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  max-width: 80%;
+  text-align: center;
+  font-family: 'SartoshiScript';
+  
+  &::before {
+    content: '⚠️';
+    margin-right: 8px;
+  }
+`;
+
 function Creator({ themeColor, setThemeColor }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -615,26 +651,89 @@ function Creator({ themeColor, setThemeColor }) {
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [selectedPrice, setSelectedPrice] = useState(null);
+  const [provider, setProvider] = useState(null);
+  const [signer, setSigner] = useState(null);
+  const [account, setAccount] = useState(null);
+  const [mintError, setMintError] = useState(null);
 
-  // Web3 hooks
-  const { isConnected } = useAccount();
-  const { data: walletClient } = useWalletClient();
-  const publicClient = usePublicClient();
+  useEffect(() => {
+    const initProvider = async () => {
+      try {
+        const provider = await getProvider();
+        setProvider(provider);
 
-  // Fetch mint price when component mounts
+        if (window.ethereum) {
+          try {
+            const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+            if (accounts.length > 0) {
+              setAccount(accounts[0]);
+              try {
+                const signer = await provider.getSigner();
+                setSigner(signer);
+              } catch (error) {
+                console.error('Error getting signer:', error);
+                setMintError('Error getting signer: ' + error.message);
+              }
+            }
+          } catch (error) {
+            console.error('Error getting accounts:', error);
+            setMintError('Error getting accounts: ' + error.message);
+          }
+
+          window.ethereum.on('accountsChanged', async (accounts) => {
+            if (accounts.length > 0) {
+              setAccount(accounts[0]);
+              try {
+                const signer = await provider.getSigner();
+                setSigner(signer);
+              } catch (error) {
+                console.error('Error getting signer after account change:', error);
+                setSigner(null);
+              }
+            } else {
+              setAccount(null);
+              setSigner(null);
+            }
+          });
+
+          window.ethereum.on('chainChanged', () => {
+            // Reload the page when chain changes
+            window.location.reload();
+          });
+        }
+      } catch (error) {
+        console.error('Error initializing provider:', error);
+        setMintError(error.message);
+      }
+    };
+
+    initProvider();
+
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('accountsChanged', () => {});
+        window.ethereum.removeListener('chainChanged', () => {});
+      }
+    };
+  }, []);
+
   useEffect(() => {
     const fetchMintPrice = async () => {
-      if (publicClient) {
+      if (provider) {
         try {
-          const price = await getMintPrice(publicClient);
+          setMintError(null);
+          const price = await getMintPrice(provider);
           setMintPrice(price);
         } catch (error) {
           console.error('Error fetching mint price:', error);
+          setMintError(error.message);
+          setMintPrice(null);
         }
       }
     };
+
     fetchMintPrice();
-  }, [publicClient]);
+  }, [provider]);
 
   // Initialize theme color
   useEffect(() => {
@@ -711,63 +810,48 @@ function Creator({ themeColor, setThemeColor }) {
     }
   };
 
-  const handleMintClick = () => {
-    if (!isConnected) {
-      alert('Please connect your wallet first');
-      return;
+  const handleMintClick = async () => {
+    if (!account) {
+      try {
+        await modal.open();
+      } catch (error) {
+        console.error('Error connecting wallet:', error);
+        setMintError('Failed to connect wallet: ' + error.message);
+      }
+    } else {
+      setShowPriceModal(true);
     }
-    setShowPriceModal(true);
   };
 
   const handleMintConfirm = async () => {
-    if (!selectedPrice) return;
+    if (!signer) {
+      setMintError('No signer available');
+      return;
+    }
     setShowPriceModal(false);
     await handleMint();
   };
 
   const handleMint = async () => {
-    if (!previewRef.current) return;
+    if (!signer || !account) {
+      setMintError('No signer or account available');
+      return;
+    }
 
+    setIsMinting(true);
+    setMintError(null);
     try {
-      // Check wallet connection
-      if (!isConnected) {
-        alert('Please connect your wallet first');
-        return;
-      }
-
-      setIsMinting(true);
-
-      // Take screenshot and export models
-      const imageBlob = await previewRef.current.takeScreenshot();
-      const animatedGlb = await previewRef.current.exportScene('animated');
-      const tposeGlb = await previewRef.current.exportScene('t-pose');
-
-      // Generate temporary metadata for the contract call
-      const tempMetadata = generateMetadata(selectedTraits, '0');
-      const tempMetadataBlob = new Blob([JSON.stringify(tempMetadata)], { type: 'application/json' });
-
-      // Mint NFT first to get the token ID
-      const hash = await mintNFT(walletClient, publicClient, tempMetadataBlob);
-      console.log('Mint transaction:', hash);
-
-      // Wait for transaction confirmation
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      console.log('Mint confirmed:', receipt);
-
-      // Get the token ID from the mint event
-      const tokenId = receipt.logs[0].topics[3];
-      const numericTokenId = parseInt(tokenId, 16).toString();
-
-      // Now upload files with the correct token ID
-      const result = await saveAndUpload(imageBlob, animatedGlb, tposeGlb, selectedTraits, numericTokenId);
-      console.log('Upload complete:', result);
-
-      // Navigate to details page
-      navigate(`/details?id=${numericTokenId}`);
-
+      const metadata = generateMetadata(selectedTraits);
+      const { uri } = await saveAndUpload(metadata);
+      
+      const tx = await mintNFT(signer, uri, { value: mintPrice });
+      await tx.wait();
+      
+      // Handle successful mint
+      navigate('/my');
     } catch (error) {
-      console.error('Error during minting process:', error);
-      alert('Error during minting process. Please try again.');
+      console.error('Error minting NFT:', error);
+      setMintError(error.message);
     } finally {
       setIsMinting(false);
     }
@@ -842,7 +926,7 @@ function Creator({ themeColor, setThemeColor }) {
           <Button 
             variant="primary"
             onClick={handleMintClick}
-            disabled={!hasSelectedTraits || isMinting || !isConnected}
+            disabled={!hasSelectedTraits || isMinting || !account}
             themeColor={themeColor}
           >
             <span>⚡</span>
@@ -912,6 +996,12 @@ function Creator({ themeColor, setThemeColor }) {
             </ModalButtons>
           </ModalContent>
         </ModalOverlay>
+      )}
+
+      {mintError && (
+        <ErrorMessage themeColor={themeColor}>
+          {mintError}
+        </ErrorMessage>
       )}
     </CreatorContainer>
   );

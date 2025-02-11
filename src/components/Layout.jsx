@@ -1,14 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import styled from '@emotion/styled';
 import { keyframes } from '@emotion/react';
 import { COLOR_MAP } from '../config/colors';
-import { createWeb3Modal, defaultWagmiConfig } from '@web3modal/wagmi/react';
-import { WagmiConfig } from 'wagmi';
-import { mainnet, sepolia } from 'wagmi/chains';
+import { WalletConnectModal } from '@walletconnect/modal';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// Configure web3modal
+// Configure WalletConnect
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
 
 const metadata = {
@@ -18,13 +16,18 @@ const metadata = {
   icons: ['https://avatars.githubusercontent.com/u/37784886']
 };
 
-// Use Sepolia for development, add mainnet for production
-const chains = [sepolia];
-const wagmiConfig = defaultWagmiConfig({ chains, projectId, metadata });
-const queryClient = new QueryClient();
+// Initialize WalletConnect Modal
+const modal = new WalletConnectModal({
+  projectId,
+  themeMode: 'dark',
+  themeVariables: {
+    '--wcm-font-family': 'SartoshiScript',
+    '--wcm-background-color': '#13151a',
+    '--wcm-accent-color': '#feb66e'
+  }
+});
 
-// Create modal
-createWeb3Modal({ wagmiConfig, projectId, chains });
+const queryClient = new QueryClient();
 
 // Navigation items shared across the app
 export const NAVIGATION_ITEMS = [
@@ -398,86 +401,115 @@ const Layout = ({ children, themeColor, onThemeChange }) => {
     onThemeChange(`#${color}`);
   };
 
-  return (
-    <WagmiConfig config={wagmiConfig}>
-      <QueryClientProvider client={queryClient}>
-        <PageContainer themeColor={themeColor}>
-          <TopBar>
-            <Logo to="/" themeColor={themeColor}>mfer avatars</Logo>
-            <TopNavigation>
-              {NAVIGATION_ITEMS.map((item) => (
-                item.dropdownItems ? (
-                  <TopNavItem
-                    key={item.label}
-                    active={item.dropdownItems.some(dropItem => location.pathname === dropItem.path)}
-                    onClick={() => setOpenDropdown(openDropdown === item.label ? null : item.label)}
-                    themeColor={themeColor}
-                  >
-                    {item.label}
-                    <DropdownContent isOpen={openDropdown === item.label}>
-                      {item.dropdownItems.map((dropItem) => (
-                        <DropdownItem
-                          key={dropItem.path}
-                          to={dropItem.path}
-                          onClick={() => setOpenDropdown(null)}
-                        >
-                          {dropItem.label}
-                        </DropdownItem>
-                      ))}
-                    </DropdownContent>
-                  </TopNavItem>
-                ) : (
-                  <TopNavLink
-                    key={item.path}
-                    to={item.path}
-                    active={location.pathname === item.path}
-                    themeColor={themeColor}
-                  >
-                    {item.label}
-                  </TopNavLink>
-                )
-              ))}
-              <SettingsContainer>
-                <SettingsButton 
-                  color={themeColor}
-                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
-                    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
-                  </svg>
-                </SettingsButton>
-                <SettingsDropdown isOpen={isSettingsOpen}>
-                  <SettingsSection>
-                    <SettingsTitle themeColor={themeColor}>Wallet</SettingsTitle>
-                    <WalletContainer themeColor={themeColor}>
-                      <w3m-button />
-                    </WalletContainer>
-                  </SettingsSection>
-                  <SettingsSection>
-                    <SettingsTitle themeColor={themeColor}>Theme</SettingsTitle>
-                    <ColorGrid>
-                      {Object.entries(COLOR_MAP).map(([name, color]) => (
-                        <ColorButton
-                          key={name}
-                          colorHex={color}
-                          isSelected={themeColor === `#${color}`}
-                          onClick={() => handleColorChange(color)}
-                          title={name}
-                        />
-                      ))}
-                    </ColorGrid>
-                  </SettingsSection>
-                </SettingsDropdown>
-              </SettingsContainer>
-            </TopNavigation>
-          </TopBar>
+  const handleConnect = async () => {
+    try {
+      await modal.open();
+    } catch (error) {
+      console.error('Error connecting wallet:', error);
+    }
+  };
 
-          {children}
-        </PageContainer>
-      </QueryClientProvider>
-    </WagmiConfig>
+  return (
+    <QueryClientProvider client={queryClient}>
+      <PageContainer themeColor={themeColor}>
+        <TopBar>
+          <Logo to="/" themeColor={themeColor}>mfer avatars</Logo>
+          <TopNavigation>
+            {NAVIGATION_ITEMS.map((item) => (
+              item.dropdownItems ? (
+                <TopNavItem
+                  key={item.label}
+                  active={item.dropdownItems.some(dropItem => location.pathname === dropItem.path)}
+                  onClick={() => setOpenDropdown(openDropdown === item.label ? null : item.label)}
+                  themeColor={themeColor}
+                >
+                  {item.label}
+                  <DropdownContent isOpen={openDropdown === item.label}>
+                    {item.dropdownItems.map((dropItem) => (
+                      <DropdownItem
+                        key={dropItem.path}
+                        to={dropItem.path}
+                        onClick={() => setOpenDropdown(null)}
+                      >
+                        {dropItem.label}
+                      </DropdownItem>
+                    ))}
+                  </DropdownContent>
+                </TopNavItem>
+              ) : (
+                <TopNavLink
+                  key={item.path}
+                  to={item.path}
+                  active={location.pathname === item.path}
+                  themeColor={themeColor}
+                >
+                  {item.label}
+                </TopNavLink>
+              )
+            ))}
+            <SettingsContainer>
+              <SettingsButton 
+                color={themeColor}
+                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
+                  <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
+                </svg>
+              </SettingsButton>
+              <SettingsDropdown isOpen={isSettingsOpen}>
+                <SettingsSection>
+                  <SettingsTitle themeColor={themeColor}>Wallet</SettingsTitle>
+                  <WalletContainer themeColor={themeColor}>
+                    <ConnectButton onClick={handleConnect}>
+                      Connect Wallet
+                    </ConnectButton>
+                  </WalletContainer>
+                </SettingsSection>
+                <SettingsSection>
+                  <SettingsTitle themeColor={themeColor}>Theme</SettingsTitle>
+                  <ColorGrid>
+                    {Object.entries(COLOR_MAP).map(([name, color]) => (
+                      <ColorButton
+                        key={name}
+                        colorHex={color}
+                        isSelected={themeColor === `#${color}`}
+                        onClick={() => handleColorChange(color)}
+                        title={name}
+                      />
+                    ))}
+                  </ColorGrid>
+                </SettingsSection>
+              </SettingsDropdown>
+            </SettingsContainer>
+          </TopNavigation>
+        </TopBar>
+        {children}
+      </PageContainer>
+    </QueryClientProvider>
   );
 };
+
+const ConnectButton = styled.button`
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  font-family: 'SartoshiScript';
+  font-size: 1.4em;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-2px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+`;
 
 export default Layout; 

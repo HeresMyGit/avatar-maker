@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { useRef, useEffect, useState, forwardRef, useImperativeHandle, Suspense } from 'react';
+import { useRef, useEffect, useState, forwardRef, useImperativeHandle, Suspense, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, useGLTF, Environment, useAnimations, Text } from '@react-three/drei';
 import { TRAIT_CATEGORIES } from '../config/traits';
@@ -7,10 +7,106 @@ import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import styled from '@emotion/styled';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { TextureLoader } from 'three';
 
-const GLB_URL = "https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/builders/mfermashup.glb";
-const EXPORT_GLB_URL = "https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/builders/mfermashup-t.glb";
+// Add retry constants
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000;
+
+// Create a custom texture loader with retry logic
+const createTextureLoader = () => {
+  const loader = new TextureLoader();
+  loader.setCrossOrigin('anonymous');
+  return loader;
+};
+
+const loadTextureWithRetry = (url, retries = MAX_RETRIES) => {
+  const loader = createTextureLoader();
+  
+  return new Promise((resolve) => {
+    const attemptLoad = (attemptsLeft) => {
+      loader.load(
+        url,
+        (texture) => {
+          texture.needsUpdate = true;
+          resolve(texture);
+        },
+        undefined,
+        (error) => {
+          console.warn(`Texture load error (${attemptsLeft} attempts left):`, error);
+          if (attemptsLeft > 0) {
+            setTimeout(() => attemptLoad(attemptsLeft - 1), RETRY_DELAY);
+          } else {
+            console.warn('Creating fallback texture after all retries failed');
+            const defaultTexture = new THREE.Texture();
+            defaultTexture.needsUpdate = true;
+            resolve(defaultTexture);
+          }
+        }
+      );
+    };
+    
+    attemptLoad(retries);
+  });
+};
+
+const textureLoader = createTextureLoader();
+
+const GLB_URL = new URL("https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/builders/mfermashup.glb").toString();
+const EXPORT_GLB_URL = new URL("https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/builders/mfermashup-t.glb").toString();
 const LOADING_MODEL_URL = "/avatar-maker/sartoshi-head.glb";
+
+// Create a model manager to handle loading and caching
+const modelManager = {
+  loadedModels: new Map(),
+  loadModel: async (url) => {
+    if (modelManager.loadedModels.has(url)) {
+      return modelManager.loadedModels.get(url);
+    }
+
+    const loader = new GLTFLoader();
+    loader.setCrossOrigin('anonymous');
+    loader.setMeshoptDecoder(null);
+    loader.setDRACOLoader(null);
+
+    try {
+      const gltf = await new Promise((resolve, reject) => {
+        loader.load(url, resolve, undefined, reject);
+      });
+
+      // Store a clone of the model
+      const clonedScene = SkeletonUtils.clone(gltf.scene);
+      const clonedAnimations = gltf.animations.map(anim => anim.clone());
+      
+      const model = {
+        scene: clonedScene,
+        animations: clonedAnimations
+      };
+
+      modelManager.loadedModels.set(url, model);
+      return model;
+    } catch (error) {
+      console.error('Error loading model:', error);
+      throw error;
+    }
+  },
+  disposeModel: (url) => {
+    const model = modelManager.loadedModels.get(url);
+    if (model) {
+      model.scene.traverse((obj) => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach(mat => mat.dispose());
+          } else {
+            obj.material.dispose();
+          }
+        }
+      });
+      modelManager.loadedModels.delete(url);
+    }
+  }
+};
 
 // Instead, use Text component from @react-three/drei for 3D text
 const LoadingText = ({ children }) => (
@@ -240,57 +336,145 @@ const TRAIT_MESH_MAPPING = {
   }
 };
 
-// Loading model component
+// Loading model component with manual loading
 const LoadingModel = () => {
-  const loadingGroupRef = useRef();
-  const { scene: loadingScene } = useGLTF(LOADING_MODEL_URL);
+  const groupRef = useRef();
+  const modelRef = useRef(null);
 
   useEffect(() => {
-    if (!loadingScene || !loadingGroupRef.current) return;
+    let isMounted = true;
 
-    const clonedLoadingScene = loadingScene.clone();
-    clonedLoadingScene.scale.set(0.8, 0.8, 0.8);
-    clonedLoadingScene.position.set(0, 0.9, 0);
-    clonedLoadingScene.rotation.y = -Math.PI/2;
-    
-    loadingGroupRef.current.add(clonedLoadingScene);
+    const loadModel = async () => {
+      try {
+        const model = await modelManager.loadModel(LOADING_MODEL_URL);
+        
+        if (!isMounted) return;
 
-    return () => {
-      while (loadingGroupRef.current?.children.length > 0) {
-        const child = loadingGroupRef.current.children[0];
-        loadingGroupRef.current.remove(child);
-        if (child.geometry) child.geometry.dispose();
-        if (child.material) child.material.dispose();
+        const clonedScene = SkeletonUtils.clone(model.scene);
+        clonedScene.scale.set(0.8, 0.8, 0.8);
+        clonedScene.position.set(0, 0.9, 0);
+        clonedScene.rotation.y = -Math.PI/2;
+
+        modelRef.current = { scene: clonedScene };
+        
+        if (groupRef.current) {
+          groupRef.current.clear();
+          groupRef.current.add(clonedScene);
+        }
+      } catch (error) {
+        console.error('Error loading loading model:', error);
       }
     };
-  }, [loadingScene]);
+
+    loadModel();
+
+    return () => {
+      isMounted = false;
+      if (modelRef.current) {
+        modelRef.current.scene.traverse((obj) => {
+          if (obj.geometry) obj.geometry.dispose();
+          if (obj.material) {
+            if (Array.isArray(obj.material)) {
+              obj.material.forEach(mat => mat.dispose());
+            } else {
+              obj.material.dispose();
+            }
+          }
+        });
+      }
+    };
+  }, []);
 
   useFrame((state, delta) => {
-    if (loadingGroupRef.current) {
-      loadingGroupRef.current.rotation.y += delta * 0.5;
+    if (groupRef.current) {
+      groupRef.current.rotation.y += delta * 0.5;
     }
   });
 
   return (
     <>
-      <group ref={loadingGroupRef} />
+      <group ref={groupRef} />
       <LoadingText>loading...</LoadingText>
     </>
   );
 };
 
 // Main model component
-const MainModel = ({ selectedTraits, onLoad, sceneRef }) => {
+const MainModel = ({ selectedTraits, onLoad, onError, sceneRef }) => {
   const groupRef = useRef();
-  const { scene, animations } = useGLTF(GLB_URL);
-  const animationRef = useRef();
+  const modelRef = useRef(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { gl } = useThree();
 
-  // Store animations in sceneRef for export
   useEffect(() => {
-    if (sceneRef.current && animations) {
-      sceneRef.current.userData.animations = animations;
-    }
-  }, [animations, sceneRef]);
+    let isMounted = true;
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+
+    const loadModel = async () => {
+      try {
+        setIsLoading(true);
+        const model = await modelManager.loadModel(GLB_URL);
+        
+        if (!isMounted) return;
+
+        modelRef.current = {
+          scene: SkeletonUtils.clone(model.scene),
+          animations: model.animations.map(anim => anim.clone())
+        };
+
+        if (groupRef.current) {
+          groupRef.current.clear();
+          groupRef.current.add(modelRef.current.scene);
+        }
+
+        sceneRef.current = modelRef.current.scene;
+        
+        if (modelRef.current.animations.length > 0) {
+          const mixer = new THREE.AnimationMixer(modelRef.current.scene);
+          const clip = modelRef.current.animations[0].clone();
+          const action = mixer.clipAction(clip);
+          action.play();
+          modelRef.current.mixer = mixer;
+        }
+
+        updateMeshVisibility();
+        setIsLoading(false);
+        onLoad();
+      } catch (error) {
+        console.error('Error loading model:', error);
+        if (retryCount < MAX_RETRIES && isMounted) {
+          retryCount++;
+          console.log(`Retrying model load (${retryCount}/${MAX_RETRIES})`);
+          setTimeout(loadModel, 1000);
+        } else if (isMounted) {
+          onError(error);
+        }
+      }
+    };
+
+    loadModel();
+
+    return () => {
+      isMounted = false;
+      if (modelRef.current) {
+        if (modelRef.current.mixer) {
+          modelRef.current.mixer.stopAllAction();
+          modelRef.current.mixer.uncacheRoot(modelRef.current.scene);
+        }
+        modelRef.current.scene.traverse((obj) => {
+          if (obj.geometry) obj.geometry.dispose();
+          if (obj.material) {
+            if (Array.isArray(obj.material)) {
+              obj.material.forEach(mat => mat.dispose());
+            } else {
+              obj.material.dispose();
+            }
+          }
+        });
+      }
+    };
+  }, [onLoad, onError]);
 
   // Function to update mesh visibility based on selected traits
   const updateMeshVisibility = () => {
@@ -365,55 +549,9 @@ const MainModel = ({ selectedTraits, onLoad, sceneRef }) => {
     });
   };
 
-  useEffect(() => {
-    if (!scene) return;
-
-    const clonedScene = SkeletonUtils.clone(scene);
-    sceneRef.current = clonedScene;
-
-    // Add cloned scene to group
-    groupRef.current.add(clonedScene);
-
-    if (animations && animations.length > 0) {
-      const mixer = new THREE.AnimationMixer(clonedScene);
-      const clip = animations[0].clone();
-      const action = mixer.clipAction(clip);
-      action.play();
-      animationRef.current = { mixer, action };
-    }
-
-    // Apply initial visibility
-    updateMeshVisibility();
-
-    // Notify parent that model is loaded
-    onLoad();
-
-    return () => {
-      if (animationRef.current) {
-        animationRef.current.action.stop();
-        animationRef.current.mixer.stopAllAction();
-        animationRef.current.mixer.uncacheRoot(clonedScene);
-      }
-      
-      if (groupRef.current) {
-        while (groupRef.current.children.length > 0) {
-          const child = groupRef.current.children[0];
-          groupRef.current.remove(child);
-          if (child.geometry) child.geometry.dispose();
-          if (child.material) child.material.dispose();
-        }
-      }
-    };
-  }, [scene, animations, onLoad, sceneRef]);
-
-  // Update visibility whenever traits change
-  useEffect(() => {
-    updateMeshVisibility();
-  }, [selectedTraits]);
-
   useFrame((state, delta) => {
-    if (animationRef.current) {
-      animationRef.current.mixer.update(delta);
+    if (modelRef.current?.mixer) {
+      modelRef.current.mixer.update(delta);
     }
   });
 
@@ -423,6 +561,8 @@ const MainModel = ({ selectedTraits, onLoad, sceneRef }) => {
 const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor }, ref) => {
   const [modelLoaded, setModelLoaded] = useState(false);
   const [showLoadingModel, setShowLoadingModel] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0); // Add key for forcing remounts
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const sceneRootRef = useRef();
   const { gl, scene, camera } = useThree();
@@ -440,10 +580,20 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
   // Handle model loading sequence
   const handleModelLoad = () => {
     setModelLoaded(true);
-    // Wait a bit before hiding the loading model
-    setTimeout(() => {
+    setLoadError(false);
+    setShowLoadingModel(false);
+  };
+
+  const handleLoadError = (error) => {
+    console.error('Model loading error:', error);
+    if (error.message === 'Retrying model load') {
+      // Force a remount of the MainModel component
+      setRetryKey(prev => prev + 1);
+      setShowLoadingModel(true);
+    } else {
+      setLoadError(true);
       setShowLoadingModel(false);
-    }, 1);  // Reduced to 1ms for almost immediate transition
+    }
   };
 
   // Expose functions through ref
@@ -654,18 +804,20 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
       
       <Suspense fallback={<LoadingModel />}>
         {showLoadingModel && <LoadingModel />}
-        <MainModel 
-          selectedTraits={selectedTraits}
-          sceneRef={sceneRootRef}
-          onLoad={handleModelLoad}
-        />
+        {loadError ? (
+          <LoadingText>Error loading model. Please try refreshing the page.</LoadingText>
+        ) : (
+          <MainModel 
+            key={retryKey}
+            selectedTraits={selectedTraits}
+            sceneRef={sceneRootRef}
+            onLoad={handleModelLoad}
+            onError={handleLoadError}
+          />
+        )}
       </Suspense>
     </>
   );
 });
-
-// Preload both GLB files immediately
-useGLTF.preload(LOADING_MODEL_URL);
-useGLTF.preload(GLB_URL);
 
 export default CharacterPreview; 

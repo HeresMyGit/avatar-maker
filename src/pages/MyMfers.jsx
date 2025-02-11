@@ -1,149 +1,190 @@
 import { useState, useEffect } from 'react';
-import { useAccount, useContractReads, usePublicClient } from 'wagmi';
-import MferGallery from '../components/MferGallery';
+import styled from '@emotion/styled';
+import { getProvider, getOwnedTokens } from '../utils/contract';
+import { WalletConnectModal } from '@walletconnect/modal';
 
-// NFT Collection Addresses
-const COLLECTIONS = {
-  OG_MFERS: '0x79FCDEF22feeD20eDDacbB2587640e45491b757f',
-  BASED_MFERS: '0xb8B9673B8A3a60C185e15550fC8D1A2dAAc0f882'
+const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
+
+const metadata = {
+  name: 'mfer Avatars',
+  description: 'View your mfer avatars',
+  url: window.location.origin,
+  icons: ['https://avatars.githubusercontent.com/u/37784886']
 };
 
-// Basic ERC721 ABI for balanceOf and tokenOfOwnerByIndex
-const ERC721_ABI = [
-  {
-    inputs: [{ name: 'owner', type: 'address' }],
-    name: 'balanceOf',
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function'
-  },
-  {
-    inputs: [
-      { name: 'owner', type: 'address' },
-      { name: 'index', type: 'uint256' }
-    ],
-    name: 'tokenOfOwnerByIndex',
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function'
+// Initialize WalletConnect Modal
+const modal = new WalletConnectModal({
+  projectId,
+  themeMode: 'dark',
+  themeVariables: {
+    '--wcm-font-family': 'SartoshiScript',
+    '--wcm-background-color': '#13151a',
+    '--wcm-accent-color': '#feb66e'
   }
-];
+});
 
-function MyMfersContent({ themeColor }) {
-  const { address, isConnected } = useAccount();
-  const publicClient = usePublicClient();
-  const [ownedTokens, setOwnedTokens] = useState([]);
+const MyMfers = () => {
+  const [nfts, setNfts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchId, setSearchId] = useState('');
-
-  // Setup contract reads for both collections
-  const { data: nftData } = useContractReads({
-    contracts: [
-      {
-        address: COLLECTIONS.OG_MFERS,
-        abi: ERC721_ABI,
-        functionName: 'balanceOf',
-        args: [address || '0x0000000000000000000000000000000000000000'],
-      },
-      {
-        address: COLLECTIONS.BASED_MFERS,
-        abi: ERC721_ABI,
-        functionName: 'balanceOf',
-        args: [address || '0x0000000000000000000000000000000000000000'],
-      },
-    ],
-    enabled: isConnected,
-  });
+  const [account, setAccount] = useState(null);
+  const [provider, setProvider] = useState(null);
 
   useEffect(() => {
-    const fetchOwnedTokens = async () => {
-      if (!isConnected || !nftData || !publicClient) return;
+    const initProvider = async () => {
+      const provider = getProvider();
+      setProvider(provider);
 
-      const [ogBalance, basedBalance] = nftData;
-      const tokens = [];
+      if (window.ethereum) {
+        try {
+          const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+          if (accounts.length > 0) {
+            setAccount(accounts[0]);
+          }
+        } catch (error) {
+          console.error('Error getting accounts:', error);
+        }
 
-      // Fetch OG mfers
-      for (let i = 0; i < Number(ogBalance); i++) {
-        const tokenId = await getTokenId(publicClient, COLLECTIONS.OG_MFERS, address, i);
-        tokens.push({ 
-          id: tokenId, 
-          collection: 'og',
-          glb: `https://cybermfers.sfo3.digitaloceanspaces.com/cybermfers/public/${tokenId}.glb`,
-          usdz: `https://cybermfers.sfo3.digitaloceanspaces.com/cybermfers/public/${tokenId}.usdz`,
-          traits: {} // We could fetch traits if needed
+        window.ethereum.on('accountsChanged', (accounts) => {
+          if (accounts.length > 0) {
+            setAccount(accounts[0]);
+          } else {
+            setAccount(null);
+          }
         });
       }
-
-      // Fetch Based mfers
-      for (let i = 0; i < Number(basedBalance); i++) {
-        const tokenId = await getTokenId(publicClient, COLLECTIONS.BASED_MFERS, address, i);
-        tokens.push({ 
-          id: tokenId, 
-          collection: 'based',
-          glb: `https://cybermfers.sfo3.digitaloceanspaces.com/cybermfers/based/public/${tokenId}.glb`,
-          usdz: `https://cybermfers.sfo3.digitaloceanspaces.com/cybermfers/based/public/${tokenId}.usdz`,
-          traits: {} // We could fetch traits if needed
-        });
-      }
-
-      setOwnedTokens(tokens);
-      setLoading(false);
     };
 
-    fetchOwnedTokens();
-  }, [isConnected, nftData, address, publicClient]);
+    initProvider();
 
-  if (!isConnected) {
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('accountsChanged', () => {});
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const fetchNFTs = async () => {
+      if (!provider || !account) return;
+
+      try {
+        setLoading(true);
+        const tokens = await getOwnedTokens(provider, account);
+        setNfts(tokens);
+      } catch (error) {
+        console.error('Error fetching NFTs:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNFTs();
+  }, [provider, account]);
+
+  const handleConnect = async () => {
+    try {
+      await modal.open();
+    } catch (error) {
+      console.error('Error connecting wallet:', error);
+    }
+  };
+
+  if (!account) {
     return (
-      <div style={{ textAlign: 'center', padding: '2rem' }}>
-        <h1 style={{ color: themeColor }}>My mfers</h1>
-        <p>Connect your wallet to view your mfer avatars</p>
-        <w3m-button />
-      </div>
+      <Container>
+        <ConnectButton onClick={handleConnect}>
+          Connect Wallet to View Your mfers
+        </ConnectButton>
+      </Container>
     );
   }
 
+  if (loading) {
+    return <Container>Loading your mfers...</Container>;
+  }
+
   return (
-    <MferGallery
-      title="My mfers"
-      themeColor={themeColor}
-      models={ownedTokens}
-      loading={loading}
-      searchId={searchId}
-      setSearchId={setSearchId}
-      onSearch={() => {
-        const token = ownedTokens.find(t => t.id.toString() === searchId);
-        if (token) {
-          window.location.href = `/details?id=${token.id}${token.collection === 'based' ? '&based=true' : ''}`;
-        }
-      }}
-      searchPlaceholder="Search your mfers"
-      marketplaceButtons={[
-        {
-          label: "Mint OG mfer",
-          url: "https://www.mferavatars.xyz",
-          disabled: false
-        },
-        {
-          label: "Mint Based mfer",
-          url: "https://v2.scatter.art/based-mfer-avatars",
-          disabled: false
-        }
-      ]}
-    />
+    <Container>
+      <Title>My mfers</Title>
+      <Grid>
+        {nfts.map((nft) => (
+          <NFTCard key={nft.id}>
+            <NFTImage src={nft.image} alt={nft.name} />
+            <NFTInfo>
+              <NFTName>{nft.name}</NFTName>
+              <NFTDescription>{nft.description}</NFTDescription>
+            </NFTInfo>
+          </NFTCard>
+        ))}
+      </Grid>
+    </Container>
   );
-}
+};
 
-async function getTokenId(publicClient, contractAddress, owner, index) {
-  const data = await publicClient.readContract({
-    address: contractAddress,
-    abi: ERC721_ABI,
-    functionName: 'tokenOfOwnerByIndex',
-    args: [owner, index],
-  });
-  return Number(data);
-}
+const Container = styled.div`
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+`;
 
-export default function MyMfers({ themeColor }) {
-  return <MyMfersContent themeColor={themeColor} />;
-} 
+const Title = styled.h1`
+  font-size: 2.5rem;
+  margin-bottom: 2rem;
+  color: white;
+`;
+
+const Grid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 2rem;
+`;
+
+const NFTCard = styled.div`
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: transform 0.2s;
+
+  &:hover {
+    transform: translateY(-5px);
+  }
+`;
+
+const NFTImage = styled.img`
+  width: 100%;
+  height: 250px;
+  object-fit: cover;
+`;
+
+const NFTInfo = styled.div`
+  padding: 1rem;
+`;
+
+const NFTName = styled.h3`
+  margin: 0;
+  color: white;
+  font-size: 1.2rem;
+`;
+
+const NFTDescription = styled.p`
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+  margin: 0.5rem 0 0;
+`;
+
+const ConnectButton = styled.button`
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+`;
+
+export default MyMfers; 
