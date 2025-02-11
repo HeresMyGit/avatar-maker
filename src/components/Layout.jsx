@@ -82,7 +82,7 @@ const TopNavItem = styled.div`
     left: 50%;
     width: ${props => props.active ? '100%' : '0'};
     height: 2px;
-    background: ${props => props.themeColor};
+    background: ${props => props['data-theme-color']};
     transform: translateX(-50%);
     transition: all 0.3s ease;
   }
@@ -99,7 +99,7 @@ const TopNavLink = styled(Link)`
   text-decoration: none;
   position: relative;
   transition: all 0.3s ease;
-  opacity: ${props => props.active ? '1' : '0.6'};
+  opacity: ${props => props['data-active'] === 'true' ? '1' : '0.6'};
   white-space: nowrap;
 
   @media (max-width: 1024px) {
@@ -115,9 +115,9 @@ const TopNavLink = styled(Link)`
     position: absolute;
     bottom: -5px;
     left: 50%;
-    width: ${props => props.active ? '100%' : '0'};
+    width: ${props => props['data-active'] === 'true' ? '100%' : '0'};
     height: 2px;
-    background: ${props => props.themeColor};
+    background: ${props => props['data-theme-color']};
     transform: translateX(-50%);
     transition: all 0.3s ease;
   }
@@ -132,7 +132,7 @@ const Logo = styled(Link)`
   font-size: 2em;
   color: white;
   text-decoration: none;
-  background: linear-gradient(135deg, ${props => props.themeColor} 0%, ${props => props.themeColor}DD 100%);
+  background: linear-gradient(135deg, ${props => props['data-theme-color']} 0%, ${props => props['data-theme-color']}DD 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   margin-right: 2rem;
@@ -166,13 +166,13 @@ const SettingsButton = styled.button`
   svg {
     width: 20px;
     height: 20px;
-    color: ${props => props.color};
+    color: ${props => props['data-color']};
     transition: all 0.3s ease;
   }
 
   &:hover {
     background: rgba(0, 0, 0, 0.5);
-    border-color: ${props => props.color}66;
+    border-color: ${props => props['data-color']}66;
     transform: translateY(-2px);
     
     svg {
@@ -227,7 +227,7 @@ const SettingsSection = styled.div`
 const SettingsTitle = styled.h3`
   font-family: 'SartoshiScript';
   font-size: 1.6em;
-  color: ${props => props.themeColor};
+  color: ${props => props['data-theme-color']};
   margin: 0 0 16px 0;
   opacity: 0.9;
 `;
@@ -278,7 +278,7 @@ const WalletContainer = styled.div`
   w3m-button {
     width: 100%;
     font-family: 'SartoshiScript';
-    --w3m-accent-color: ${props => props.themeColor};
+    --w3m-accent-color: ${props => props['data-theme-color']};
     --w3m-font-family: 'SartoshiScript';
     --w3m-button-border-radius: 12px;
     --w3m-background-color: rgba(255, 255, 255, 0.03);
@@ -289,7 +289,7 @@ const WalletContainer = styled.div`
     --w3m-button-border-color: rgba(255, 255, 255, 0.1);
     --w3m-wallet-icon-border-radius: 8px;
     --w3m-text-big-bold-size: 1.4em;
-    --w3m-color-overlay: ${props => props.themeColor}05;
+    --w3m-color-overlay: ${props => props['data-theme-color']}05;
 
     &:hover {
       transform: translateY(-2px);
@@ -311,7 +311,7 @@ const PageContainer = styled.div`
     left: 0;
     right: 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, ${props => props.themeColor}80, transparent);
+    background: linear-gradient(90deg, transparent, ${props => props['data-theme-color']}80, transparent);
   }
 
   &::after {
@@ -321,7 +321,7 @@ const PageContainer = styled.div`
     left: 0;
     right: 0;
     bottom: 0;
-    background: radial-gradient(circle at 50% 50%, ${props => props.themeColor}0D 0%, transparent 50%);
+    background: radial-gradient(circle at 50% 50%, ${props => props['data-theme-color']}0D 0%, transparent 50%);
     pointer-events: none;
   }
 `;
@@ -404,9 +404,9 @@ const Layout = ({ children, themeColor, onThemeChange }) => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <PageContainer themeColor={themeColor}>
+      <PageContainer data-theme-color={themeColor}>
         <TopBar>
-          <Logo to="/" themeColor={themeColor}>mfer avatars</Logo>
+          <Logo to="/" data-theme-color={themeColor}>mfer avatars</Logo>
           <TopNavigation>
             {NAVIGATION_ITEMS.map((item) => (
               item.dropdownItems ? (
@@ -414,7 +414,7 @@ const Layout = ({ children, themeColor, onThemeChange }) => {
                   key={item.label}
                   active={item.dropdownItems.some(dropItem => location.pathname === dropItem.path)}
                   onClick={() => setOpenDropdown(openDropdown === item.label ? null : item.label)}
-                  themeColor={themeColor}
+                  data-theme-color={themeColor}
                 >
                   {item.label}
                   <DropdownContent isOpen={openDropdown === item.label}>
@@ -433,8 +433,8 @@ const Layout = ({ children, themeColor, onThemeChange }) => {
                 <TopNavLink
                   key={item.path}
                   to={item.path}
-                  active={location.pathname === item.path}
-                  themeColor={themeColor}
+                  data-active={location.pathname === item.path}
+                  data-theme-color={themeColor}
                 >
                   {item.label}
                 </TopNavLink>
@@ -442,7 +442,7 @@ const Layout = ({ children, themeColor, onThemeChange }) => {
             ))}
             <SettingsContainer>
               <SettingsButton 
-                color={themeColor}
+                data-color={themeColor}
                 onClick={() => setIsSettingsOpen(!isSettingsOpen)}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -452,15 +452,15 @@ const Layout = ({ children, themeColor, onThemeChange }) => {
               </SettingsButton>
               <SettingsDropdown isOpen={isSettingsOpen}>
                 <SettingsSection>
-                  <SettingsTitle themeColor={themeColor}>Wallet</SettingsTitle>
-                  <WalletContainer themeColor={themeColor}>
+                  <SettingsTitle data-theme-color={themeColor}>Wallet</SettingsTitle>
+                  <WalletContainer data-theme-color={themeColor}>
                     <ConnectButton onClick={handleConnect}>
                       Connect Wallet
                     </ConnectButton>
                   </WalletContainer>
                 </SettingsSection>
                 <SettingsSection>
-                  <SettingsTitle themeColor={themeColor}>Theme</SettingsTitle>
+                  <SettingsTitle data-theme-color={themeColor}>Theme</SettingsTitle>
                   <ColorGrid>
                     {Object.entries(COLOR_MAP).map(([name, color]) => (
                       <ColorButton

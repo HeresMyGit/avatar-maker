@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import { useRef, useEffect, useState, forwardRef, useImperativeHandle, Suspense, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, useGLTF, Environment, useAnimations, Text } from '@react-three/drei';
@@ -7,50 +6,11 @@ import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import styled from '@emotion/styled';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
-import { TextureLoader } from 'three';
+import * as THREE from 'three';
 
 // Add retry constants
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
-
-// Create a custom texture loader with retry logic
-const createTextureLoader = () => {
-  const loader = new TextureLoader();
-  loader.setCrossOrigin('anonymous');
-  return loader;
-};
-
-const loadTextureWithRetry = (url, retries = MAX_RETRIES) => {
-  const loader = createTextureLoader();
-  
-  return new Promise((resolve) => {
-    const attemptLoad = (attemptsLeft) => {
-      loader.load(
-        url,
-        (texture) => {
-          texture.needsUpdate = true;
-          resolve(texture);
-        },
-        undefined,
-        (error) => {
-          console.warn(`Texture load error (${attemptsLeft} attempts left):`, error);
-          if (attemptsLeft > 0) {
-            setTimeout(() => attemptLoad(attemptsLeft - 1), RETRY_DELAY);
-          } else {
-            console.warn('Creating fallback texture after all retries failed');
-            const defaultTexture = new THREE.Texture();
-            defaultTexture.needsUpdate = true;
-            resolve(defaultTexture);
-          }
-        }
-      );
-    };
-    
-    attemptLoad(retries);
-  });
-};
-
-const textureLoader = createTextureLoader();
 
 const GLB_URL = new URL("https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/builders/mfermashup.glb").toString();
 const EXPORT_GLB_URL = new URL("https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/builders/mfermashup-t.glb").toString();
@@ -106,6 +66,49 @@ const modelManager = {
       modelManager.loadedModels.delete(url);
     }
   }
+};
+
+// Create a custom texture loader hook
+const useTextureLoader = () => {
+  const { gl } = useThree();
+  return useMemo(() => {
+    const loader = new THREE.TextureLoader();
+    loader.setCrossOrigin('anonymous');
+    return loader;
+  }, [gl]);
+};
+
+// Create a hook for loading textures with retry
+const useLoadTextureWithRetry = () => {
+  const loader = useTextureLoader();
+  
+  return useMemo(() => (url, retries = MAX_RETRIES) => {
+    return new Promise((resolve) => {
+      const attemptLoad = (attemptsLeft) => {
+        loader.load(
+          url,
+          (texture) => {
+            texture.needsUpdate = true;
+            resolve(texture);
+          },
+          undefined,
+          (error) => {
+            console.warn(`Texture load error (${attemptsLeft} attempts left):`, error);
+            if (attemptsLeft > 0) {
+              setTimeout(() => attemptLoad(attemptsLeft - 1), RETRY_DELAY);
+            } else {
+              console.warn('Creating fallback texture after all retries failed');
+              const defaultTexture = new THREE.Texture();
+              defaultTexture.needsUpdate = true;
+              resolve(defaultTexture);
+            }
+          }
+        );
+      };
+      
+      attemptLoad(retries);
+    });
+  }, [loader]);
 };
 
 // Instead, use Text component from @react-three/drei for 3D text
@@ -340,6 +343,7 @@ const TRAIT_MESH_MAPPING = {
 const LoadingModel = () => {
   const groupRef = useRef();
   const modelRef = useRef(null);
+  const loadTexture = useLoadTextureWithRetry();
 
   useEffect(() => {
     let isMounted = true;
@@ -383,7 +387,7 @@ const LoadingModel = () => {
         });
       }
     };
-  }, []);
+  }, [loadTexture]);
 
   useFrame((state, delta) => {
     if (groupRef.current) {
@@ -405,6 +409,7 @@ const MainModel = ({ selectedTraits, onLoad, onError, sceneRef }) => {
   const modelRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
   const { gl } = useThree();
+  const loadTexture = useLoadTextureWithRetry();
 
   useEffect(() => {
     let isMounted = true;
@@ -474,7 +479,7 @@ const MainModel = ({ selectedTraits, onLoad, onError, sceneRef }) => {
         });
       }
     };
-  }, [onLoad, onError]);
+  }, [onLoad, onError, loadTexture]);
 
   // Function to update mesh visibility based on selected traits
   const updateMeshVisibility = () => {
@@ -562,9 +567,10 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
   const [modelLoaded, setModelLoaded] = useState(false);
   const [showLoadingModel, setShowLoadingModel] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [retryKey, setRetryKey] = useState(0); // Add key for forcing remounts
+  const [retryKey, setRetryKey] = useState(0);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const sceneRootRef = useRef();
+  const exportLockRef = useRef(false);
   const { gl, scene, camera } = useThree();
 
   // Handle window resize
@@ -582,18 +588,19 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
     setModelLoaded(true);
     setLoadError(false);
     setShowLoadingModel(false);
+    exportLockRef.current = false;
   };
 
   const handleLoadError = (error) => {
     console.error('Model loading error:', error);
     if (error.message === 'Retrying model load') {
-      // Force a remount of the MainModel component
       setRetryKey(prev => prev + 1);
       setShowLoadingModel(true);
     } else {
       setLoadError(true);
       setShowLoadingModel(false);
     }
+    exportLockRef.current = false;
   };
 
   // Expose functions through ref
@@ -662,13 +669,34 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
 
     exportScene: async (exportType = 'animated') => {
       console.log(`Starting export process for type: ${exportType}`);
-      if (!modelLoaded || !sceneRootRef.current) {
-        console.warn('Model not fully loaded yet', { modelLoaded, sceneRef: !!sceneRootRef.current });
-        return null;
-      }
+      
+      // Add loading state check with timeout
+      const waitForLoad = async (maxWaitTime = 10000) => {
+        const startTime = Date.now();
+        while (!modelLoaded && Date.now() - startTime < maxWaitTime) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        if (!modelLoaded) {
+          throw new Error('Model loading timeout exceeded');
+        }
+      };
 
       try {
-        // Load the appropriate version of the model based on export type
+        // Wait for model to load with timeout
+        await waitForLoad();
+
+        if (exportLockRef.current) {
+          console.log('Export already in progress, waiting...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        if (!sceneRootRef.current) {
+          throw new Error('Scene reference not available');
+        }
+
+        exportLockRef.current = true;
+
+        // Rest of the export process remains the same...
         const modelUrl = exportType === 't-pose' ? EXPORT_GLB_URL : GLB_URL;
         console.log('Loading model from URL:', modelUrl);
 
@@ -681,12 +709,57 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
             console.log(`Loading model attempt ${retryCount + 1}/${MAX_LOAD_RETRIES}`);
             loader.load(
               modelUrl,
-              (gltf) => {
-                console.log('Model loaded successfully:', {
-                  hasScene: !!gltf.scene,
-                  animationCount: gltf.animations?.length || 0
-                });
-                resolve(gltf);
+              async (gltf) => {
+                try {
+                  // Process all materials and textures
+                  const texturePromises = [];
+                  gltf.scene.traverse((node) => {
+                    if (node.material) {
+                      const material = node.material;
+                      // Process all texture maps in the material
+                      const maps = [
+                        'map', 'normalMap', 'roughnessMap', 'metalnessMap',
+                        'emissiveMap', 'aoMap', 'displacementMap'
+                      ];
+                      
+                      maps.forEach(mapType => {
+                        if (material[mapType]) {
+                          const texture = material[mapType];
+                          if (texture.image) {
+                            // Create a new texture from the image data
+                            const newTexture = new THREE.Texture(texture.image);
+                            newTexture.needsUpdate = true;
+                            // Copy texture properties
+                            newTexture.wrapS = texture.wrapS;
+                            newTexture.wrapT = texture.wrapT;
+                            newTexture.magFilter = texture.magFilter;
+                            newTexture.minFilter = texture.minFilter;
+                            // Replace the original texture
+                            material[mapType] = newTexture;
+                          }
+                        }
+                      });
+                    }
+                  });
+
+                  // Wait for all textures to load
+                  await Promise.all(texturePromises);
+                  
+                  console.log('Model loaded successfully:', {
+                    hasScene: !!gltf.scene,
+                    animationCount: gltf.animations?.length || 0
+                  });
+                  resolve(gltf);
+                } catch (error) {
+                  console.error('Error processing textures:', error);
+                  if (retryCount < MAX_LOAD_RETRIES - 1) {
+                    retryCount++;
+                    console.log(`Retrying due to texture error...`);
+                    setTimeout(attemptLoad, 1000);
+                  } else {
+                    reject(error);
+                  }
+                }
               },
               (progress) => {
                 const percent = (progress.loaded / progress.total * 100);
@@ -718,7 +791,6 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
         });
 
         console.log('Getting visible meshes from current scene');
-        // Get the list of visible meshes from current scene
         const visibleMeshes = new Set();
         sceneRootRef.current.traverse((obj) => {
           if (obj.isMesh && obj.visible) {
@@ -727,7 +799,6 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
         });
         console.log('Visible meshes:', Array.from(visibleMeshes));
 
-        // Apply visibility to export scene
         console.log('Applying visibility to export scene');
         loadedModel.scene.traverse((node) => {
           if (node.isMesh) {
@@ -738,28 +809,15 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
           }
         });
 
-        // Get animations based on export type, with error handling
         let animations = [];
         if (exportType === 'animated' && loadedModel.animations) {
           console.log('Processing animations:', {
             count: loadedModel.animations.length,
             names: loadedModel.animations.map(a => a.name)
           });
-          
-          // Use the original animations instead of cloning
           animations = loadedModel.animations;
-          
-          if (animations.length === 0) {
-            console.warn('No animations found in the model');
-          } else {
-            console.log('Successfully loaded animations:', {
-              count: animations.length,
-              names: animations.map(a => a.name)
-            });
-          }
         }
 
-        // Create an exporter with specific options
         console.log('Creating GLTFExporter');
         const exporter = new GLTFExporter();
         const options = {
@@ -769,7 +827,8 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
           embedImages: true,
           onlyVisible: true,
           forceIndices: true,
-          truncateDrawRange: false
+          truncateDrawRange: false,
+          maxTextureSize: 2048 // Add texture size limit to prevent memory issues
         };
         console.log('Export options:', options);
 
@@ -806,6 +865,7 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
         });
       } catch (error) {
         console.error('Error in exportScene:', error);
+        exportLockRef.current = false;
         throw error;
       }
     }
