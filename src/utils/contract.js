@@ -10,11 +10,30 @@ export const NETWORKS = {
       symbol: 'ETH',
       decimals: 18
     },
-    rpcUrl: `https://sepolia.infura.io/v3/${import.meta.env.VITE_INFURA_PROJECT_ID}`
+    // Use a public RPC URL as fallback if Infura ID is not available
+    rpcUrl: import.meta.env.VITE_INFURA_PROJECT_ID 
+      ? `https://sepolia.infura.io/v3/${import.meta.env.VITE_INFURA_PROJECT_ID}`
+      : 'https://rpc.sepolia.org'
   }
 };
 
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS;
+
+// Add debug logging
+console.log('Environment variables:', {
+  CONTRACT_ADDRESS,
+  VITE_CONTRACT_ADDRESS: import.meta.env.VITE_CONTRACT_ADDRESS,
+});
+
+// Add debug logging for network configuration
+console.log('Network configuration:', {
+  rpcUrl: NETWORKS.SEPOLIA.rpcUrl,
+  hasInfuraId: Boolean(import.meta.env.VITE_INFURA_PROJECT_ID)
+});
+
+if (!CONTRACT_ADDRESS) {
+  console.error('Contract address is missing. Available env vars:', import.meta.env);
+}
 
 const CONTRACT_ABI = [
   // Mint functions
@@ -148,6 +167,10 @@ export const getSigner = async () => {
 };
 
 export const getContract = (signerOrProvider) => {
+  if (!CONTRACT_ADDRESS) {
+    throw new Error('Contract address is not configured. Please check your environment variables.');
+  }
+  console.log('Creating contract instance with address:', CONTRACT_ADDRESS);
   return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signerOrProvider);
 };
 

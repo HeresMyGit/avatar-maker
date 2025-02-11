@@ -1,9 +1,9 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, CopyObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 // Initialize S3 client (Digital Ocean Spaces uses S3-compatible API)
 const initS3Client = () => {
   return new S3Client({
-    endpoint: `https://${import.meta.env.VITE_DO_SPACES_BUCKET}.sfo3.digitaloceanspaces.com`,
+    endpoint: "https://sfo3.digitaloceanspaces.com",
     region: "sfo3",
     credentials: {
       accessKeyId: import.meta.env.VITE_DO_SPACES_KEY,
@@ -16,7 +16,8 @@ const initS3Client = () => {
 // Upload a single file to Digital Ocean Space
 const uploadFile = async (file, path, contentType) => {
   const client = initS3Client();
-  const key = `cybermfers/cybermfers/maker${path}`;
+  // Add cybermfers prefix to match bucket structure
+  const key = `cybermfers/maker${path}`;
 
   // Convert Blob/File to ArrayBuffer
   const arrayBuffer = await file.arrayBuffer();
@@ -32,6 +33,7 @@ const uploadFile = async (file, path, contentType) => {
 
   try {
     await client.send(command);
+    // For URLs, use the bucket in the domain
     return `https://${import.meta.env.VITE_DO_SPACES_BUCKET}.sfo3.digitaloceanspaces.com/${key}`;
   } catch (error) {
     console.error('Error uploading to Digital Ocean Space:', error);
@@ -43,15 +45,15 @@ const uploadFile = async (file, path, contentType) => {
 export const uploadToSpace = async (imageBlob, animatedGlb, tposeGlb, metadata, tokenId) => {
   try {
     // Upload preview image
-    const imagePath = `/maker/public/assets/png/${tokenId}.png`;
+    const imagePath = `/public/assets/png/${tokenId}.png`;
     const imageUrl = await uploadFile(imageBlob, imagePath, 'image/png');
 
     // Upload animated GLB
-    const animatedPath = `/maker/public/assets/glb/${tokenId}.glb`;
+    const animatedPath = `/public/assets/glb/${tokenId}.glb`;
     const animatedUrl = await uploadFile(animatedGlb, animatedPath, 'model/gltf-binary');
 
     // Upload T-pose GLB
-    const tposePath = `/maker/public/assets/glb/${tokenId}-tpose.glb`;
+    const tposePath = `/public/assets/glb/${tokenId}-tpose.glb`;
     const tposeUrl = await uploadFile(tposeGlb, tposePath, 'model/gltf-binary');
 
     // Update metadata with URLs
@@ -63,7 +65,7 @@ export const uploadToSpace = async (imageBlob, animatedGlb, tposeGlb, metadata, 
     };
 
     // Upload metadata
-    const metadataPath = `/maker/public/metadata/${tokenId}.json`;
+    const metadataPath = `/public/metadata/${tokenId}.json`;
     const metadataBlob = new Blob([JSON.stringify(updatedMetadata, null, 2)], { type: 'application/json' });
     await uploadFile(metadataBlob, metadataPath, 'application/json');
 
@@ -75,6 +77,44 @@ export const uploadToSpace = async (imageBlob, animatedGlb, tposeGlb, metadata, 
     };
   } catch (error) {
     console.error('Error uploading files:', error);
+    throw error;
+  }
+};
+
+// Function to rename files in Digital Ocean Space after minting
+export const renameFilesAfterMint = async (oldTokenId, newTokenId) => {
+  const client = initS3Client();
+  const bucket = import.meta.env.VITE_DO_SPACES_BUCKET;
+  const fileTypes = [
+    { path: '/public/assets/png/', ext: '.png' },
+    { path: '/public/assets/glb/', ext: '.glb' },
+    { path: '/public/assets/glb/', ext: '-tpose.glb' },
+    { path: '/public/metadata/', ext: '.json' }
+  ];
+
+  try {
+    for (const { path, ext } of fileTypes) {
+      const oldKey = `cybermfers/maker${path}${oldTokenId}${ext}`;
+      const newKey = `cybermfers/maker${path}${newTokenId}${ext}`;
+
+      // Copy the object to new key
+      const copyCommand = new CopyObjectCommand({
+        Bucket: bucket,
+        CopySource: `${bucket}/${oldKey}`,
+        Key: newKey,
+        ACL: "public-read"
+      });
+      await client.send(copyCommand);
+
+      // Delete the old object
+      const deleteCommand = new DeleteObjectCommand({
+        Bucket: bucket,
+        Key: oldKey
+      });
+      await client.send(deleteCommand);
+    }
+  } catch (error) {
+    console.error('Error renaming files:', error);
     throw error;
   }
 }; 

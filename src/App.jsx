@@ -16,9 +16,10 @@ import { css, keyframes } from '@emotion/react';
 import { useNavigate } from 'react-router-dom';
 import { COLOR_MAP } from './config/colors';
 import CharacterCreator from './components/CharacterCreator';
-import { generateMetadata, saveAndUpload } from './utils/minting';
+import { generateMetadata } from './utils/minting';
+import { uploadToSpace, renameFilesAfterMint } from './utils/storage';
 import { WalletConnectModal } from '@walletconnect/modal';
-import { getProvider, getSigner, getMintPrice, mintNFT } from './utils/contract';
+import { getProvider, getSigner, getMintPrice, mintNFT, getContract } from './utils/contract';
 import { formatEther } from 'ethers';
 
 // Configure WalletConnect
@@ -841,11 +842,49 @@ function Creator({ themeColor, setThemeColor }) {
     setIsMinting(true);
     setMintError(null);
     try {
-      const metadata = generateMetadata(selectedTraits);
-      const { uri } = await saveAndUpload(metadata);
+      // Generate a temporary token ID
+      const tempTokenId = Date.now().toString();
+
+      // Take screenshot and export GLB files
+      const imageBlob = await previewRef.current.takeScreenshot();
+      const animatedGlb = await previewRef.current.exportScene('animated');
+      const tposeGlb = await previewRef.current.exportScene('tpose');
+
+      if (!imageBlob || !animatedGlb || !tposeGlb) {
+        throw new Error('Failed to generate model files');
+      }
+
+      // Generate metadata
+      const metadata = generateMetadata(selectedTraits, tempTokenId);
+
+      // Save files and get metadata URI using temporary token ID
+      const result = await uploadToSpace(imageBlob, animatedGlb, tposeGlb, metadata, tempTokenId);
       
-      const tx = await mintNFT(signer, uri, { value: mintPrice });
-      await tx.wait();
+      // Mint NFT with the metadata URI
+      const tx = await mintNFT(signer, result.metadata.external_url, { value: mintPrice });
+      const receipt = await tx.wait();
+
+      // Get the actual token ID from the transaction receipt
+      // Look for the Transfer event (ERC721) which contains the token ID
+      const contract = getContract(signer);
+      const transferEvent = receipt.logs
+        .map(log => {
+          try {
+            return contract.interface.parseLog(log);
+          } catch (e) {
+            return null;
+          }
+        })
+        .find(event => event && event.name === 'Transfer');
+
+      if (!transferEvent) {
+        throw new Error('Could not find token ID in transaction receipt');
+      }
+
+      const actualTokenId = transferEvent.args.tokenId.toString();
+
+      // Rename files with the actual token ID
+      await renameFilesAfterMint(tempTokenId, actualTokenId);
       
       // Handle successful mint
       navigate('/my');
