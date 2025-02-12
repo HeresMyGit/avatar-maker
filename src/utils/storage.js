@@ -52,8 +52,8 @@ export const uploadToSpace = async (imageBlob, animatedGlb, tposeGlb, metadata, 
     const animatedPath = `/public/assets/glb/${tokenId}.glb`;
     const animatedUrl = await uploadFile(animatedGlb, animatedPath, 'model/gltf-binary');
 
-    // Upload T-pose GLB
-    const tposePath = `/public/assets/glb/${tokenId}-tpose.glb`;
+    // Upload T-pose GLB to new directory
+    const tposePath = `/public/assets/t-pose/${tokenId}.glb`;
     const tposeUrl = await uploadFile(tposeGlb, tposePath, 'model/gltf-binary');
 
     // Update metadata with URLs
@@ -61,7 +61,8 @@ export const uploadToSpace = async (imageBlob, animatedGlb, tposeGlb, metadata, 
       ...metadata,
       image: imageUrl,
       animation_url: animatedUrl,
-      glb_url: animatedUrl
+      glb_url: animatedUrl,
+      tpose_url: tposeUrl
     };
 
     // Upload metadata
@@ -88,7 +89,7 @@ export const renameFilesAfterMint = async (oldTokenId, newTokenId) => {
   const fileTypes = [
     { path: '/public/assets/png/', ext: '.png' },
     { path: '/public/assets/glb/', ext: '.glb' },
-    { path: '/public/assets/glb/', ext: '-tpose.glb' },
+    { path: '/public/assets/t-pose/', ext: '.glb' },
     { path: '/public/metadata/', ext: '.json' }
   ];
 
@@ -97,13 +98,35 @@ export const renameFilesAfterMint = async (oldTokenId, newTokenId) => {
       const oldKey = `cybermfers/maker${path}${oldTokenId}${ext}`;
       const newKey = `cybermfers/maker${path}${newTokenId}${ext}`;
 
-      // Copy the object to new key
+      // Copy the object to new key with CORS headers
       const copyCommand = new CopyObjectCommand({
         Bucket: bucket,
         CopySource: `${bucket}/${oldKey}`,
         Key: newKey,
-        ACL: "public-read"
+        ACL: "public-read",
+        MetadataDirective: 'REPLACE',
+        ContentType: ext === '.json' ? 'application/json' : 
+                    ext === '.png' ? 'image/png' : 
+                    'model/gltf-binary',
+        Metadata: {
+          'x-amz-meta-cors': '*'
+        }
       });
+
+      // Add CORS headers to the request
+      copyCommand.middlewareStack.add(
+        (next) => async (args) => {
+          if (!args.request.headers) {
+            args.request.headers = {};
+          }
+          args.request.headers['Access-Control-Allow-Origin'] = '*';
+          args.request.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,HEAD';
+          args.request.headers['Access-Control-Allow-Headers'] = 'amz-sdk-invocation-id,amz-sdk-request,authorization,x-amz-acl,x-amz-content-sha256,x-amz-copy-source,x-amz-date,x-amz-user-agent';
+          return next(args);
+        },
+        { step: 'build' }
+      );
+
       await client.send(copyCommand);
 
       // Delete the old object
