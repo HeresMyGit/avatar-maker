@@ -49,7 +49,7 @@ const CONTRACT_ABI = [
   },
   // Mint functions
   {
-    inputs: [{ name: 'uri', type: 'string' }],
+    inputs: [],
     name: 'mint',
     outputs: [{ name: '', type: 'uint256' }],
     stateMutability: 'payable',
@@ -58,8 +58,7 @@ const CONTRACT_ABI = [
   {
     inputs: [
       { name: 'token', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-      { name: 'uri', type: 'string' }
+      { name: 'amount', type: 'uint256' }
     ],
     name: 'mintWithToken',
     outputs: [{ name: '', type: 'uint256' }],
@@ -230,7 +229,7 @@ export const getTokenPrice = async (provider, tokenAddress) => {
   return contract.getPaymentAmount(tokenAddress);
 };
 
-export const mintNFT = async (signer, tokenUri, options = {}) => {
+export const mintNFT = async (signer, options = {}) => {
   try {
     console.log('Getting contract with address:', CONTRACT_ADDRESS);
     const contract = getContract(signer);
@@ -241,8 +240,8 @@ export const mintNFT = async (signer, tokenUri, options = {}) => {
       throw new Error(`No contract found at address ${CONTRACT_ADDRESS} on the ${NETWORKS.SEPOLIA.name} network`);
     }
     
-    console.log('Minting NFT with URI:', tokenUri);
-    const tx = await contract.mint(tokenUri, options);
+    console.log('Minting NFT');
+    const tx = await contract.mint(options);
     console.log('Transaction:', tx);
     return tx;
   } catch (error) {
@@ -254,7 +253,7 @@ export const mintNFT = async (signer, tokenUri, options = {}) => {
   }
 };
 
-export const mintWithToken = async (signer, tokenAddress, amount, tokenUri) => {
+export const mintWithToken = async (signer, tokenAddress, amount) => {
   try {
     console.log('Getting contract with address:', CONTRACT_ADDRESS);
     const contract = getContract(signer);
@@ -265,8 +264,8 @@ export const mintWithToken = async (signer, tokenAddress, amount, tokenUri) => {
       throw new Error(`No contract found at address ${CONTRACT_ADDRESS} on the ${NETWORKS.SEPOLIA.name} network`);
     }
     
-    console.log('Minting NFT with token payment:', { tokenAddress, amount, tokenUri });
-    const tx = await contract.mintWithToken(tokenAddress, amount, tokenUri);
+    console.log('Minting NFT with token payment:', { tokenAddress, amount });
+    const tx = await contract.mintWithToken(tokenAddress, amount);
     console.log('Transaction:', tx);
     return tx;
   } catch (error) {

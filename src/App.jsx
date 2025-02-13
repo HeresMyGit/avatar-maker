@@ -17,7 +17,7 @@ import { useNavigate } from 'react-router-dom';
 import { COLOR_MAP } from './config/colors';
 import CharacterCreator from './components/CharacterCreator';
 import { generateMetadata } from './utils/minting';
-import { uploadToSpace, renameFilesAfterMint } from './utils/storage';
+import { uploadToSpace } from './utils/storage';
 import { getProvider, getSigner, getMintPrice, mintNFT, getContract } from './utils/contract';
 import { formatEther } from 'ethers';
 import LoadingOverlay from './components/LoadingOverlay';
@@ -872,10 +872,7 @@ function Creator({ themeColor, setThemeColor }) {
     setIsMinting(true);
     setMintError(null);
     try {
-      // Generate a temporary token ID
-      const tempTokenId = Date.now().toString();
-
-      // Take screenshot and export GLB files
+      // Generate all assets first
       const imageBlob = await previewRef.current.takeScreenshot();
       const animatedGlbData = await previewRef.current.exportScene('animated');
       const tposeGlbData = await previewRef.current.exportScene('t-pose');
@@ -888,42 +885,36 @@ function Creator({ themeColor, setThemeColor }) {
       const animatedGlb = new Blob([animatedGlbData], { type: 'model/gltf-binary' });
       const tposeGlb = new Blob([tposeGlbData], { type: 'model/gltf-binary' });
 
-      // Generate metadata
-      const metadata = generateMetadata(selectedTraits, tempTokenId);
+      // Upload asset files first with a temporary ID (no metadata yet)
+      const tempId = `pre-mint-${Date.now()}`;
+      console.log('Uploading asset files with temporary ID:', tempId);
+      const tempUploadResult = await uploadToSpace(imageBlob, animatedGlb, tposeGlb, null, tempId);
+      console.log('Asset files uploaded with temporary ID');
 
-      // Save files and get metadata URI using temporary token ID
-      const result = await uploadToSpace(imageBlob, animatedGlb, tposeGlb, metadata, tempTokenId);
-      
-      // Mint NFT with the metadata URI
-      const tx = await mintNFT(signer, result.metadata.external_url, { value: mintPrice });
-      const receipt = await tx.wait();
+      // TESTING: Use token ID 69 instead of minting
+      const actualTokenId = "69";
+      console.log('Using test token ID:', actualTokenId);
 
-      // Get the actual token ID from the transaction receipt
-      // Look for the Transfer event (ERC721) which contains the token ID
-      const contract = getContract(signer);
-      const transferEvent = receipt.logs
-        .map(log => {
-          try {
-            return contract.interface.parseLog(log);
-          } catch (e) {
-            return null;
-          }
-        })
-        .find(event => event && event.name === 'Transfer');
+      // Generate metadata with the test token ID
+      console.log('Generating metadata with test token ID:', actualTokenId);
+      const finalMetadata = generateMetadata(selectedTraits, actualTokenId);
 
-      if (!transferEvent) {
-        throw new Error('Could not find token ID in transaction receipt');
-      }
+      // Upload final files with metadata, passing tempId for cleanup
+      console.log('Uploading final files with test token ID:', actualTokenId);
+      const finalUploadResult = await uploadToSpace(
+        imageBlob, 
+        animatedGlb, 
+        tposeGlb, 
+        finalMetadata, 
+        actualTokenId,
+        tempId // Pass the tempId for cleanup
+      );
+      console.log('Files and metadata uploaded successfully');
 
-      const actualTokenId = transferEvent.args.tokenId.toString();
-
-      // Rename files with the actual token ID
-      await renameFilesAfterMint(tempTokenId, actualTokenId);
-      
-      // Handle successful mint
+      // Handle successful "mint"
       navigate('/my');
     } catch (error) {
-      console.error('Error minting NFT:', error);
+      console.error('Error in test minting process:', error);
       setMintError(error.message);
     } finally {
       setIsMinting(false);

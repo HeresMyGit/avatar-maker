@@ -1,15 +1,15 @@
 import { S3Client, PutObjectCommand, CopyObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 
-// Initialize S3 client (Digital Ocean Spaces uses S3-compatible API)
+// Initialize S3 client
 const initS3Client = () => {
   return new S3Client({
-    endpoint: "https://sfo3.digitaloceanspaces.com",
+    endpoint: import.meta.env.VITE_DO_SPACES_ENDPOINT || "https://sfo3.digitaloceanspaces.com",
     region: "sfo3",
     credentials: {
       accessKeyId: import.meta.env.VITE_DO_SPACES_KEY,
       secretAccessKey: import.meta.env.VITE_DO_SPACES_SECRET
     },
-    forcePathStyle: false
+    forcePathStyle: false // This is important for DigitalOcean Spaces
   });
 };
 
@@ -42,125 +42,215 @@ const uploadFile = async (file, path, contentType) => {
 };
 
 // Upload all minting files to Digital Ocean Space
-export const uploadToSpace = async (imageBlob, animatedGlb, tposeGlb, metadata, tokenId) => {
+export const uploadToSpace = async (imageBlob, animatedGlb, tposeGlb, metadata, tokenId, tempId = null) => {
   try {
-    console.log('Starting file uploads for tokenId:', tokenId);
-    
-    // Upload preview image
-    const imagePath = `/public/assets/png/${tokenId}.png`;
-    console.log('Uploading image to:', imagePath);
-    const imageUrl = await uploadFile(imageBlob, imagePath, 'image/png');
-    console.log('Image uploaded successfully:', imageUrl);
+    const baseUrl = `https://${import.meta.env.VITE_DO_SPACES_BUCKET}.sfo3.digitaloceanspaces.com`;
+    const basePath = 'cybermfers/playground';
+    const publicPath = `${basePath}/public`;
 
-    // Upload animated GLB
-    const animatedPath = `/public/assets/glb/${tokenId}.glb`;
-    console.log('Uploading animated GLB to:', animatedPath);
-    const animatedUrl = await uploadFile(animatedGlb, animatedPath, 'model/gltf-binary');
-    console.log('Animated GLB uploaded successfully:', animatedUrl);
+    // Helper function to get file paths
+    const getPaths = (id) => ({
+      image: `${publicPath}/assets/png/${id}.png`,
+      animated: `${publicPath}/assets/glb/${id}.glb`,
+      tpose: `${publicPath}/assets/t-pose/${id}.glb`,
+      metadata: `${publicPath}/metadata/${id}.json`
+    });
 
-    // Upload T-pose GLB to new directory
-    const tposePath = `/public/assets/t-pose/${tokenId}.glb`;
-    console.log('Uploading T-pose GLB to:', tposePath);
-    const tposeUrl = await uploadFile(tposeGlb, tposePath, 'model/gltf-binary');
-    console.log('T-pose GLB uploaded successfully:', tposeUrl);
+    // Helper function to get public URLs
+    const getPublicUrls = (id) => ({
+      image: `${baseUrl}/${publicPath}/assets/png/${id}.png`,
+      animated: `${baseUrl}/${publicPath}/assets/glb/${id}.glb`,
+      tpose: `${baseUrl}/${publicPath}/assets/t-pose/${id}.glb`,
+      metadata: `${baseUrl}/${publicPath}/metadata/${id}.json`
+    });
 
-    // Update metadata with URLs
-    const updatedMetadata = {
-      ...metadata,
-      image: imageUrl,
-      animation_url: animatedUrl,
-      glb_url: animatedUrl,
-      tpose_url: tposeUrl
-    };
-
-    // Upload metadata
-    const metadataPath = `/public/metadata/${tokenId}.json`;
-    console.log('Uploading metadata to:', metadataPath);
-    const metadataBlob = new Blob([JSON.stringify(updatedMetadata, null, 2)], { type: 'application/json' });
-    await uploadFile(metadataBlob, metadataPath, 'application/json');
-    console.log('Metadata uploaded successfully');
-
-    return {
-      imageUrl,
-      animatedUrl,
-      tposeUrl,
-      metadata: updatedMetadata
-    };
-  } catch (error) {
-    console.error('Error uploading files:', error);
-    throw error;
-  }
-};
-
-// Function to rename files in Digital Ocean Space after minting
-export const renameFilesAfterMint = async (oldTokenId, newTokenId) => {
-  console.log(`Starting rename operation from ${oldTokenId} to ${newTokenId}`);
-  const client = initS3Client();
-  const bucket = import.meta.env.VITE_DO_SPACES_BUCKET;
-  const fileTypes = [
-    { path: '/public/assets/png/', ext: '.png', contentType: 'image/png' },
-    { path: '/public/assets/glb/', ext: '.glb', contentType: 'model/gltf-binary' },
-    { path: '/public/assets/t-pose/', ext: '.glb', contentType: 'model/gltf-binary' },
-    { path: '/public/metadata/', ext: '.json', contentType: 'application/json' }
-  ];
-
-  try {
-    for (const { path, ext, contentType } of fileTypes) {
-      const oldKey = `cybermfers/maker${path}${oldTokenId}${ext}`;
-      const newKey = `cybermfers/maker${path}${newTokenId}${ext}`;
-      
-      console.log(`Processing file rename:
-        From: ${oldKey}
-        To: ${newKey}
-        Content-Type: ${contentType}`);
-
+    // If we have a tempId, we'll first try to rename the existing files
+    if (tempId) {
       try {
-        // First, get the old object
-        const getCommand = new GetObjectCommand({
-          Bucket: bucket,
-          Key: oldKey
-        });
-        console.log('Fetching original file:', oldKey);
-
-        // Get the object data
-        const { Body } = await client.send(getCommand);
-        console.log('Successfully retrieved original file');
+        const client = initS3Client();
+        console.log('Starting rename operations...');
         
-        const fileData = await streamToBuffer(Body);
-        console.log('Converted stream to buffer, size:', fileData.length);
-
-        // Upload as new object
-        const putCommand = new PutObjectCommand({
-          Bucket: bucket,
-          Key: newKey,
-          Body: fileData,
-          ContentType: contentType,
-          ACL: 'public-read'
+        // Log the paths we're working with
+        const oldPaths = getPaths(tempId);
+        const newPaths = getPaths(tokenId);
+        
+        console.log('Base paths:', {
+          bucket: import.meta.env.VITE_DO_SPACES_BUCKET,
+          baseUrl,
+          publicPath
         });
+        
+        // Perform the rename operations for asset files using S3 CopyObject
+        await Promise.all([
+          // Rename image
+          (async () => {
+            console.log('Renaming image:', { from: oldPaths.image, to: newPaths.image });
+            
+            await client.send(new CopyObjectCommand({
+              Bucket: import.meta.env.VITE_DO_SPACES_BUCKET,
+              CopySource: `${import.meta.env.VITE_DO_SPACES_BUCKET}/${oldPaths.image}`,
+              Key: newPaths.image,
+              ACL: 'public-read'
+            }));
+            console.log('Image copied successfully');
+            
+            await client.send(new DeleteObjectCommand({
+              Bucket: import.meta.env.VITE_DO_SPACES_BUCKET,
+              Key: oldPaths.image
+            }));
+            console.log('Old image deleted');
+          })(),
+          
+          // Rename animated GLB
+          (async () => {
+            console.log('Renaming animated GLB:', { from: oldPaths.animated, to: newPaths.animated });
+            
+            await client.send(new CopyObjectCommand({
+              Bucket: import.meta.env.VITE_DO_SPACES_BUCKET,
+              CopySource: `${import.meta.env.VITE_DO_SPACES_BUCKET}/${oldPaths.animated}`,
+              Key: newPaths.animated,
+              ACL: 'public-read'
+            }));
+            console.log('Animated GLB copied successfully');
+            
+            await client.send(new DeleteObjectCommand({
+              Bucket: import.meta.env.VITE_DO_SPACES_BUCKET,
+              Key: oldPaths.animated
+            }));
+            console.log('Old animated GLB deleted');
+          })(),
+          
+          // Rename t-pose GLB
+          (async () => {
+            console.log('Renaming t-pose GLB:', { from: oldPaths.tpose, to: newPaths.tpose });
+            
+            await client.send(new CopyObjectCommand({
+              Bucket: import.meta.env.VITE_DO_SPACES_BUCKET,
+              CopySource: `${import.meta.env.VITE_DO_SPACES_BUCKET}/${oldPaths.tpose}`,
+              Key: newPaths.tpose,
+              ACL: 'public-read'
+            }));
+            console.log('T-pose GLB copied successfully');
+            
+            await client.send(new DeleteObjectCommand({
+              Bucket: import.meta.env.VITE_DO_SPACES_BUCKET,
+              Key: oldPaths.tpose
+            }));
+            console.log('Old t-pose GLB deleted');
+          })()
+        ]);
 
-        console.log('Uploading to new location:', newKey);
+        console.log('All asset files renamed successfully');
+        
+        // After successful rename, we only need to handle metadata
+        if (metadata) {
+          console.log('Preparing metadata with URLs:', {
+            tokenId,
+            baseUrl,
+            publicPath
+          });
+          
+          // Update metadata URLs with public paths
+          const publicUrls = getPublicUrls(tokenId);
+          metadata.image = publicUrls.image;
+          metadata.animation_url = publicUrls.animated;
+          metadata.glb_url = publicUrls.tpose;
+          metadata.external_url = publicUrls.metadata;
 
-        await client.send(putCommand);
-        console.log('Successfully uploaded to new location');
+          console.log('Updated metadata URLs:', {
+            image: metadata.image,
+            animation_url: metadata.animation_url,
+            glb_url: metadata.glb_url,
+            external_url: metadata.external_url
+          });
 
-        // Delete old object
-        const deleteCommand = new DeleteObjectCommand({
-          Bucket: bucket,
-          Key: oldKey
-        });
-        console.log('Deleting original file:', oldKey);
-
-        await client.send(deleteCommand);
-        console.log('Successfully deleted original file');
+          // Upload metadata
+          const metadataPath = getPaths(tokenId).metadata;
+          console.log('Uploading metadata:', { path: metadataPath });
+          await client.send(new PutObjectCommand({
+            Bucket: import.meta.env.VITE_DO_SPACES_BUCKET,
+            Key: metadataPath,
+            Body: JSON.stringify(metadata, null, 2),
+            ContentType: 'application/json',
+            ACL: 'public-read'
+          }));
+          console.log('Metadata uploaded successfully');
+        }
       } catch (error) {
-        console.warn(`Error processing file ${oldKey}:`, error);
-        // Continue with other files even if one fails
-        continue;
+        console.error('Error during rename operations:', error);
+        if (error.name === 'NoSuchKey') {
+          console.error('File not found during rename. This could mean the temporary files were not created successfully.');
+        }
+        throw error; // Don't fall back to new upload, throw error instead
       }
+    } else {
+      // Initial upload with temporary ID
+      const paths = getPaths(tempId || tokenId);
+      console.log('Starting initial upload operations...');
+      const client = initS3Client();
+      
+      await Promise.all([
+        // Upload image
+        (async () => {
+          console.log('Uploading image:', { path: paths.image });
+          await client.send(new PutObjectCommand({
+            Bucket: import.meta.env.VITE_DO_SPACES_BUCKET,
+            Key: paths.image,
+            Body: await imageBlob.arrayBuffer(),
+            ContentType: 'image/png',
+            ACL: 'public-read'
+          }));
+          console.log('Image uploaded successfully');
+        })(),
+        
+        // Upload animated GLB
+        (async () => {
+          console.log('Uploading animated GLB:', { path: paths.animated });
+          await client.send(new PutObjectCommand({
+            Bucket: import.meta.env.VITE_DO_SPACES_BUCKET,
+            Key: paths.animated,
+            Body: await animatedGlb.arrayBuffer(),
+            ContentType: 'model/gltf-binary',
+            ACL: 'public-read'
+          }));
+          console.log('Animated GLB uploaded successfully');
+        })(),
+        
+        // Upload t-pose GLB
+        (async () => {
+          console.log('Uploading t-pose GLB:', { path: paths.tpose });
+          await client.send(new PutObjectCommand({
+            Bucket: import.meta.env.VITE_DO_SPACES_BUCKET,
+            Key: paths.tpose,
+            Body: await tposeGlb.arrayBuffer(),
+            ContentType: 'model/gltf-binary',
+            ACL: 'public-read'
+          }));
+          console.log('T-pose GLB uploaded successfully');
+        })()
+      ]);
+      
+      console.log('All asset files uploaded successfully');
     }
-    console.log('File rename operation completed successfully');
+
+    // Return the appropriate URLs based on whether we have metadata
+    const publicUrls = getPublicUrls(tokenId);
+    return {
+      metadata: metadata ? {
+        ...metadata,
+        image: publicUrls.image,
+        animation_url: publicUrls.animated,
+        glb_url: publicUrls.tpose,
+        external_url: publicUrls.metadata
+      } : null,
+      urls: {
+        image: publicUrls.image,
+        animated: publicUrls.animated,
+        tpose: publicUrls.tpose
+      }
+    };
   } catch (error) {
-    console.error('Error renaming files:', error);
+    console.error('Error in uploadToSpace:', error);
     throw error;
   }
 };
