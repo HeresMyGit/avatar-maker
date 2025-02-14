@@ -177,15 +177,15 @@ const Home = ({ themeColor }) => {
     {
       icon: '🎨',
       title: 'Create',
-      description: 'Design your unique mfer character with our intuitive creator tool. Choose from hundreds of traits and customize every detail.',
-      path: '/creator',
+      description: 'Design your unique mfer character with our intuitive playground tool. Choose from hundreds of traits and customize every detail.',
+      path: '/playground',
       delay: 0.4
     },
     {
       icon: '✨',
       title: 'Mint',
       description: 'Turn your creation into an NFT. Mint your custom mfer and join the community of collectors.',
-      path: '/creator',
+      path: '/playground',
       delay: 0.5
     },
     {
@@ -204,7 +204,7 @@ const Home = ({ themeColor }) => {
         <Subtitle>Create, customize, and mint your unique 3D mfer avatar</Subtitle>
         <CTAButton 
           themeColor={themeColor}
-          onClick={() => navigate('/creator')}
+          onClick={() => navigate('/playground')}
         >
           Start Creating
         </CTAButton>

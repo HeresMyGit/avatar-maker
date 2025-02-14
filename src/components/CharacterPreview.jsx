@@ -31,7 +31,84 @@ const modelManager = {
 
     try {
       const gltf = await new Promise((resolve, reject) => {
-        loader.load(url, resolve, undefined, reject);
+        // Track all created blob URLs
+        const blobUrls = new Set();
+        
+        // Create a proxy handler to track blob URL creation
+        const proxyHandler = {
+          get: (target, prop) => {
+            const value = target[prop];
+            // Track if a blob URL is created
+            if (prop === 'createObjectURL') {
+              return (...args) => {
+                const blobUrl = value.apply(target, args);
+                blobUrls.add(blobUrl);
+                return blobUrl;
+              };
+            }
+            return value;
+          }
+        };
+
+        // Create a proxy for URL to track blob creation
+        const OriginalURL = window.URL;
+        window.URL = new Proxy(OriginalURL, proxyHandler);
+
+        loader.load(
+          url,
+          (gltf) => {
+            // Restore original URL
+            window.URL = OriginalURL;
+
+            // Process all materials and textures
+            gltf.scene.traverse((node) => {
+              if (node.material) {
+                const material = node.material;
+                // Process all texture maps in the material
+                const maps = [
+                  'map', 'normalMap', 'roughnessMap', 'metalnessMap',
+                  'emissiveMap', 'aoMap', 'displacementMap'
+                ];
+                
+                maps.forEach(mapType => {
+                  if (material[mapType]) {
+                    const texture = material[mapType];
+                    // Apply texture optimizations
+                    texture.encoding = THREE.sRGBEncoding;
+                    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+                    texture.minFilter = THREE.LinearMipmapLinearFilter;
+                    texture.magFilter = THREE.LinearFilter;
+                    texture.flipY = false;
+                    texture.needsUpdate = true;
+                  }
+                });
+              }
+            });
+
+            resolve(gltf);
+          },
+          (progress) => {
+            // Log progress for large models
+            if (progress.lengthComputable) {
+              const percent = (progress.loaded / progress.total * 100).toFixed(1);
+              if (percent % 20 === 0) { // Log every 20%
+                console.log(`Loading model: ${percent}%`);
+              }
+            }
+          },
+          (error) => {
+            // Restore original URL and clean up
+            window.URL = OriginalURL;
+            blobUrls.forEach(url => {
+              try {
+                URL.revokeObjectURL(url);
+              } catch (e) {
+                console.warn('Error cleaning up blob URL:', e);
+              }
+            });
+            reject(error);
+          }
+        );
       });
 
       // Store a clone of the model
@@ -54,11 +131,25 @@ const modelManager = {
     const model = modelManager.loadedModels.get(url);
     if (model) {
       model.scene.traverse((obj) => {
-        if (obj.geometry) obj.geometry.dispose();
+        if (obj.geometry) {
+          obj.geometry.dispose();
+        }
         if (obj.material) {
           if (Array.isArray(obj.material)) {
-            obj.material.forEach(mat => mat.dispose());
+            obj.material.forEach(mat => {
+              Object.values(mat).forEach(value => {
+                if (value && typeof value === 'object' && 'dispose' in value) {
+                  value.dispose();
+                }
+              });
+              mat.dispose();
+            });
           } else {
+            Object.values(obj.material).forEach(value => {
+              if (value && typeof value === 'object' && 'dispose' in value) {
+                value.dispose();
+              }
+            });
             obj.material.dispose();
           }
         }
@@ -83,24 +174,82 @@ const useLoadTextureWithRetry = () => {
   const loader = useTextureLoader();
   
   return useMemo(() => (url, retries = MAX_RETRIES) => {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+      // Keep track of blob URLs to clean up
+      const blobUrls = new Set();
+      
+      const cleanup = () => {
+        blobUrls.forEach(url => {
+          try {
+            URL.revokeObjectURL(url);
+          } catch (e) {
+            console.warn('Error cleaning up blob URL:', e);
+          }
+        });
+        blobUrls.clear();
+      };
+
       const attemptLoad = (attemptsLeft) => {
+        // If URL is a blob URL, add it to our tracking set
+        if (url.startsWith('blob:')) {
+          blobUrls.add(url);
+        }
+
         loader.load(
           url,
           (texture) => {
-            texture.needsUpdate = true;
-            resolve(texture);
+            try {
+              // Ensure texture is properly initialized
+              texture.needsUpdate = true;
+              texture.encoding = THREE.sRGBEncoding;
+              
+              // Set good defaults for common texture properties
+              texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+              texture.minFilter = THREE.LinearMipmapLinearFilter;
+              texture.magFilter = THREE.LinearFilter;
+              texture.flipY = false; // Often needed for GLTF textures
+              
+              cleanup(); // Clean up any blob URLs
+              resolve(texture);
+            } catch (error) {
+              console.warn('Error initializing texture:', error);
+              if (attemptsLeft > 0) {
+                console.log(`Retrying texture initialization (${attemptsLeft} attempts left)`);
+                setTimeout(() => attemptLoad(attemptsLeft - 1), RETRY_DELAY);
+              } else {
+                cleanup();
+                reject(error);
+              }
+            }
           },
-          undefined,
+          (progressEvent) => {
+            // Optional: Log progress for large textures
+            if (progressEvent.lengthComputable) {
+              const progress = (progressEvent.loaded / progressEvent.total * 100).toFixed(1);
+              if (progress % 20 === 0) { // Log every 20%
+                console.log(`Loading texture: ${progress}%`);
+              }
+            }
+          },
           (error) => {
             console.warn(`Texture load error (${attemptsLeft} attempts left):`, error);
             if (attemptsLeft > 0) {
+              console.log(`Retrying texture load in ${RETRY_DELAY}ms...`);
               setTimeout(() => attemptLoad(attemptsLeft - 1), RETRY_DELAY);
             } else {
               console.warn('Creating fallback texture after all retries failed');
-              const defaultTexture = new THREE.Texture();
-              defaultTexture.needsUpdate = true;
-              resolve(defaultTexture);
+              cleanup();
+              
+              // Create a simple fallback texture
+              const canvas = document.createElement('canvas');
+              canvas.width = canvas.height = 64;
+              const ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#808080';
+              ctx.fillRect(0, 0, 64, 64);
+              
+              const fallbackTexture = new THREE.Texture(canvas);
+              fallbackTexture.needsUpdate = true;
+              resolve(fallbackTexture);
             }
           }
         );
@@ -711,50 +860,79 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
               modelUrl,
               async (gltf) => {
                 try {
+                  // Create a deep clone of the scene to avoid modifying the original
+                  const clonedScene = SkeletonUtils.clone(gltf.scene);
+                  
                   // Process all materials and textures
                   const texturePromises = [];
-                  gltf.scene.traverse((node) => {
+                  const textureLoader = new THREE.TextureLoader();
+                  
+                  clonedScene.traverse(async (node) => {
                     if (node.material) {
-                      const material = node.material;
-                      // Process all texture maps in the material
-                      const maps = [
-                        'map', 'normalMap', 'roughnessMap', 'metalnessMap',
-                        'emissiveMap', 'aoMap', 'displacementMap'
-                      ];
+                      // Handle both single materials and material arrays
+                      const materials = Array.isArray(node.material) ? node.material : [node.material];
                       
-                      maps.forEach(mapType => {
-                        if (material[mapType]) {
-                          const texture = material[mapType];
-                          if (texture.image) {
+                      materials.forEach((material) => {
+                        // List of texture properties to process
+                        const textureProps = [
+                          'map', 'normalMap', 'roughnessMap', 'metalnessMap',
+                          'emissiveMap', 'aoMap', 'displacementMap', 'alphaMap'
+                        ];
+                        
+                        textureProps.forEach((prop) => {
+                          if (material[prop] && material[prop].image) {
+                            const texture = material[prop];
+                            
                             // Create a new texture from the image data
-                            const newTexture = new THREE.Texture(texture.image);
-                            newTexture.needsUpdate = true;
-                            // Copy texture properties
-                            newTexture.wrapS = texture.wrapS;
-                            newTexture.wrapT = texture.wrapT;
-                            newTexture.magFilter = texture.magFilter;
-                            newTexture.minFilter = texture.minFilter;
-                            // Replace the original texture
-                            material[mapType] = newTexture;
+                            const promise = new Promise((resolve) => {
+                              // Create a canvas to draw the texture
+                              const canvas = document.createElement('canvas');
+                              canvas.width = texture.image.width;
+                              canvas.height = texture.image.height;
+                              const ctx = canvas.getContext('2d');
+                              ctx.drawImage(texture.image, 0, 0);
+                              
+                              // Create new texture from canvas
+                              const newTexture = new THREE.Texture(canvas);
+                              
+                              // Copy all texture properties
+                              newTexture.wrapS = texture.wrapS;
+                              newTexture.wrapT = texture.wrapT;
+                              newTexture.magFilter = texture.magFilter;
+                              newTexture.minFilter = texture.minFilter;
+                              newTexture.encoding = texture.encoding;
+                              newTexture.format = texture.format;
+                              newTexture.type = texture.type;
+                              newTexture.flipY = false; // Important for GLB export
+                              newTexture.needsUpdate = true;
+                              
+                              // Replace the original texture
+                              material[prop] = newTexture;
+                              resolve();
+                            });
+                            
+                            texturePromises.push(promise);
                           }
-                        }
+                        });
                       });
                     }
                   });
 
-                  // Wait for all textures to load
+                  // Wait for all textures to be processed
                   await Promise.all(texturePromises);
                   
-                  console.log('Model loaded successfully:', {
-                    hasScene: !!gltf.scene,
-                    animationCount: gltf.animations?.length || 0
+                  // Copy animations if they exist
+                  const clonedAnimations = gltf.animations.map(anim => anim.clone());
+                  
+                  resolve({
+                    scene: clonedScene,
+                    animations: clonedAnimations
                   });
-                  resolve(gltf);
                 } catch (error) {
-                  console.error('Error processing textures:', error);
+                  console.error('Error processing model:', error);
                   if (retryCount < MAX_LOAD_RETRIES - 1) {
                     retryCount++;
-                    console.log(`Retrying due to texture error...`);
+                    console.log(`Retrying due to processing error...`);
                     setTimeout(attemptLoad, 1000);
                   } else {
                     reject(error);
@@ -763,15 +941,8 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
               },
               (progress) => {
                 const percent = (progress.loaded / progress.total * 100);
-                // Only log at start, 33%, 66%, and completion
-                if (progress.loaded === 0) {
-                  console.log('Starting model download...');
-                } else if (percent >= 33 && percent < 34) {
-                  console.log('Download progress: 33%');
-                } else if (percent >= 66 && percent < 67) {
-                  console.log('Download progress: 66%');
-                } else if (percent === 100) {
-                  console.log('Download complete');
+                if (percent === 0 || percent === 33 || percent === 66 || percent === 100) {
+                  console.log(`Loading model: ${percent.toFixed(0)}%`);
                 }
               },
               (error) => {
@@ -828,7 +999,9 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
           onlyVisible: true,
           forceIndices: true,
           truncateDrawRange: false,
-          maxTextureSize: 2048 // Add texture size limit to prevent memory issues
+          maxTextureSize: 2048,
+          trs: false, // Use matrix transform instead of TRS
+          forcePowerOfTwoTextures: true // Force textures to be power of 2
         };
         console.log('Export options:', options);
 

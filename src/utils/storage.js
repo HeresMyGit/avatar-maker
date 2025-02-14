@@ -17,7 +17,7 @@ const initS3Client = () => {
 const uploadFile = async (file, path, contentType) => {
   const client = initS3Client();
   // Add cybermfers prefix to match bucket structure
-  const key = `cybermfers/maker${path}`;
+  const key = `cybermfers/playground${path}`;
 
   // Convert Blob/File to ArrayBuffer
   const arrayBuffer = await file.arrayBuffer();

@@ -11,11 +11,12 @@ import Based from './pages/Based';
 import Details from './pages/Details';
 import OGMfers from './pages/OGMfers';
 import MyMfers from './pages/MyMfers';
+import PlaygroundGallery from './pages/PlaygroundGallery';
 import { TRAIT_CATEGORIES } from './config/traits';
 import { css, keyframes } from '@emotion/react';
 import { useNavigate } from 'react-router-dom';
 import { COLOR_MAP } from './config/colors';
-import CharacterCreator from './components/CharacterCreator';
+import CharacterPlayground from './components/CharacterPlayground';
 import { generateMetadata } from './utils/minting';
 import { uploadToSpace } from './utils/storage';
 import { getProvider, getSigner, getMintPrice, mintNFT, getContract } from './utils/contract';
@@ -119,7 +120,7 @@ const getButtonGradient = (props) => css`
   }
 `;
 
-const CreatorContainer = styled.div`
+const PlaygroundContainer = styled.div`
   display: flex;
   height: 100vh;
   width: 100vw;
@@ -646,12 +647,12 @@ const CloseButton = styled.button`
   }
 `;
 
-function Creator({ themeColor, setThemeColor }) {
+function Playground({ themeColor, setThemeColor }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const characterCreatorRef = useRef(new CharacterCreator());
+  const characterPlaygroundRef = useRef(new CharacterPlayground());
   const [selectedTraits, setSelectedTraits] = useState(() => {
-    return characterCreatorRef.current.getSelectedTraits();
+    return characterPlaygroundRef.current.getSelectedTraits();
   });
   const [isExporting, setIsExporting] = useState(false);
   const [isTakingScreenshot, setIsTakingScreenshot] = useState(false);
@@ -747,30 +748,30 @@ function Creator({ themeColor, setThemeColor }) {
 
   // Initialize theme color
   useEffect(() => {
-    const initialThemeColor = characterCreatorRef.current.getThemeColor(selectedTraits);
+    const initialThemeColor = characterPlaygroundRef.current.getThemeColor(selectedTraits);
     setThemeColor(initialThemeColor);
   }, []);
 
   // Update theme color when background trait changes
   useEffect(() => {
-    const newThemeColor = characterCreatorRef.current.getThemeColor(selectedTraits);
+    const newThemeColor = characterPlaygroundRef.current.getThemeColor(selectedTraits);
     if (newThemeColor !== themeColor) {
       setThemeColor(newThemeColor);
     }
   }, [selectedTraits.background]);
 
   const handleTraitChange = (traitType, value) => {
-    const newTraits = characterCreatorRef.current.handleTraitChange(traitType, value);
+    const newTraits = characterPlaygroundRef.current.handleTraitChange(traitType, value);
     setSelectedTraits({ ...newTraits });
   };
 
   const handleClearAll = () => {
-    const newTraits = characterCreatorRef.current.clearAll();
+    const newTraits = characterPlaygroundRef.current.clearAll();
     setSelectedTraits({ ...newTraits });
   };
 
   const handleRandom = () => {
-    const newTraits = characterCreatorRef.current.randomize();
+    const newTraits = characterPlaygroundRef.current.randomize();
     setSelectedTraits({ ...newTraits });
   };
 
@@ -811,24 +812,35 @@ function Creator({ themeColor, setThemeColor }) {
         });
 
         if (gltfData) {
-          console.log('Creating Blob...');
-          const blob = new Blob([gltfData], { type: 'model/gltf-binary' });
+          // Create a copy of the data to avoid any potential memory issues
+          const dataArray = new Uint8Array(gltfData);
+          console.log('Creating Blob with proper MIME type and encoding...');
+          const blob = new Blob([dataArray], { 
+            type: 'model/gltf-binary;charset=utf-8'
+          });
           console.log('Blob created:', {
             size: blob.size,
             type: blob.type
           });
 
-          const url = window.URL.createObjectURL(blob);
+          // Create a clean object URL
+          const url = URL.createObjectURL(blob);
           console.log('Created object URL:', url);
 
           const a = document.createElement('a');
           a.href = url;
-          a.download = `mfer-avatar-${exportType}.glb`;
+          a.download = `mfer-avatar${exportType === 't-pose' ? '-t-pose' : ''}.glb`;
           document.body.appendChild(a);
           console.log('Triggering download...');
           a.click();
           document.body.removeChild(a);
-          window.URL.revokeObjectURL(url);
+          
+          // Clean up the object URL after a short delay to ensure download starts
+          setTimeout(() => {
+            URL.revokeObjectURL(url);
+            console.log('Cleaned up object URL');
+          }, 1000);
+          
           console.log('Export completed successfully');
         }
       } catch (error) {
@@ -912,7 +924,7 @@ function Creator({ themeColor, setThemeColor }) {
       console.log('Files and metadata uploaded successfully');
 
       // Handle successful "mint"
-      navigate('/my');
+      navigate(`/details?id=${actualTokenId}&playground=true`);
     } catch (error) {
       console.error('Error in test minting process:', error);
       setMintError(error.message);
@@ -938,7 +950,7 @@ function Creator({ themeColor, setThemeColor }) {
   return (
     <>
       <LoadingOverlay isVisible={isMinting} />
-      <CreatorContainer themeColor={themeColor}>
+      <PlaygroundContainer themeColor={themeColor}>
         <PreviewSection themeColor={themeColor}>
           <TopBar>
             <Button 
@@ -1011,7 +1023,7 @@ function Creator({ themeColor, setThemeColor }) {
         </PreviewSection>
         <SelectorSection themeColor={themeColor}>
           <Title>
-            <MainTitle themeColor={themeColor}>mfer Creator</MainTitle>
+            <MainTitle themeColor={themeColor}>mfer Playground</MainTitle>
             <Subtitle>Build your unique character</Subtitle>
           </Title>
           <TraitSelector 
@@ -1070,7 +1082,7 @@ function Creator({ themeColor, setThemeColor }) {
             <CloseButton onClick={() => setMintError(null)}>✕</CloseButton>
           </ErrorMessage>
         )}
-      </CreatorContainer>
+      </PlaygroundContainer>
     </>
   );
 }
@@ -1104,11 +1116,12 @@ function App() {
     <Router basename="/avatar-maker">
       <Routes>
         <Route path="/" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Home themeColor={themeColor} /></Layout>} />
-        <Route path="/creator" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Creator themeColor={themeColor} setThemeColor={setThemeColor} /></Layout>} />
+        <Route path="/playground" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Playground themeColor={themeColor} setThemeColor={setThemeColor} /></Layout>} />
         <Route path="/og" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><OGMfers themeColor={themeColor} /></Layout>} />
         <Route path="/customs" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Customs themeColor={themeColor} /></Layout>} />
         <Route path="/based" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Based themeColor={themeColor} /></Layout>} />
         <Route path="/my" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><MyMfers themeColor={themeColor} /></Layout>} />
+        <Route path="/playground-gallery" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><PlaygroundGallery themeColor={themeColor} /></Layout>} />
         <Route path="/details" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Details themeColor={themeColor} /></Layout>} />
         <Route path="*" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Home themeColor={themeColor} /></Layout>} />
       </Routes>

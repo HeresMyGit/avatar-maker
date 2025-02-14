@@ -200,6 +200,7 @@ const Details = ({ themeColor }) => {
     const id = params.get('id');
     const isCustom = params.get('custom') === 'true';
     const isBased = params.get('based') === 'true';
+    const isPlayground = params.get('playground') === 'true';
     const shouldNeedMint = params.get('needsMint') === 'true';
 
     if (!id) {
@@ -215,6 +216,8 @@ const Details = ({ themeColor }) => {
 
         if (isBased) {
           urlPrefix = '/cybermfers/based/';
+        } else if (isPlayground) {
+          urlPrefix = '/cybermfers/playground/';
         }
 
         const publicOrPrivate = shouldNeedMint ? "private" : "public";
@@ -223,6 +226,10 @@ const Details = ({ themeColor }) => {
         let metadataUrl = `${baseUrl}metadata/${id}.json`;
         if (isBased) {
           metadataUrl = `${baseUrl}metadata/${id}`;
+        }
+
+        if (isPlayground) {
+          metadataUrl = `https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/playground/public/metadata/${id}.json`;
         }
 
         console.log('Fetching metadata from:', metadataUrl);
@@ -285,6 +292,7 @@ const Details = ({ themeColor }) => {
           fbx_url: metadata.fbx_url,
           isCustom,
           isBased,
+          isPlayground,
           baseUrl
         });
 
@@ -374,7 +382,9 @@ const Details = ({ themeColor }) => {
     );
   }
 
-  const titlePrefix = modelData.isCustom ? 'Custom mfer' : modelData.isBased ? 'Based mfer' : 'Mfer';
+  const titlePrefix = modelData.isCustom ? 'Custom mfer' : 
+                     modelData.isBased ? 'Based mfer' : 
+                     modelData.isPlayground ? 'Playground mfer' : 'Mfer';
 
   return (
     <DetailsContainer>
@@ -399,9 +409,11 @@ const Details = ({ themeColor }) => {
         <ButtonsContainer>
           {[
             { type: 'PNG', label: 'image', url: modelData.image },
-            { type: 'VRM', label: 'model', url: modelData.vrm_url, requiresMint: true },
-            { type: 'FBX', label: 'model', url: modelData.fbx_url, requiresMint: true },
-            { type: 'USDZ', label: 'model', url: modelData.usdz },
+            ...(modelData.isPlayground ? [] : [
+              { type: 'VRM', label: 'model', url: modelData.vrm_url, requiresMint: true },
+              { type: 'FBX', label: 'model', url: modelData.fbx_url, requiresMint: true },
+              { type: 'USDZ', label: 'model', url: modelData.usdz },
+            ]),
             { type: 'GLB', label: 'model', url: modelData.glb }
           ].map(({ type, label, url, requiresMint: fileRequiresMint }) => (
             <Button
@@ -429,6 +441,33 @@ const Details = ({ themeColor }) => {
           )}
         </ButtonsContainer>
       </ModelContainer>
+
+      {modelData.isPlayground && (
+        <ExtraModelContainer themeColor={themeColor}>
+          <ModelTitle themeColor={themeColor}>T-Pose</ModelTitle>
+          <model-viewer
+            src={`https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/playground/public/assets/t-pose/${modelData.id}.glb`}
+            alt={`${titlePrefix} #${modelData.id} - T-Pose`}
+            ar-status="not-presenting"
+            shadow-intensity="1"
+            camera-controls=""
+            auto-rotate=""
+            ar=""
+            autoplay=""
+            loop=""
+            style={{ backgroundColor: `#${modelData.bgColor}`, width: '100%', height: '300px' }}
+          />
+          <ButtonsContainer>
+            <Button
+              onClick={() => downloadFile(`https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/playground/public/assets/t-pose/${modelData.id}.glb`, 'GLB')}
+              themeColor={themeColor}
+            >
+              <FileExtension>GLB</FileExtension>
+              <FileTypeLabel>model</FileTypeLabel>
+            </Button>
+          </ButtonsContainer>
+        </ExtraModelContainer>
+      )}
 
       {extraModels.map((extraModel) => (
         <ExtraModelContainer key={extraModel.name} themeColor={themeColor}>

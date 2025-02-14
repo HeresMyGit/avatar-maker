@@ -11,13 +11,14 @@ const queryClient = new QueryClient();
 // Navigation items shared across the app
 export const NAVIGATION_ITEMS = [
   { path: '/', label: 'Home' },
-  { path: '/creator', label: 'Creator' },
+  { path: '/playground', label: 'Playground' },
   {
     label: 'Galleries',
     dropdownItems: [
       { path: '/og', label: 'OG mfers' },
       { path: '/customs', label: 'Customs' },
       { path: '/based', label: 'Based' },
+      { path: '/playground-gallery', label: 'Playground Gallery' },
       { path: '/my', label: 'My mfers' }
     ]
   }

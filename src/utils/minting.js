@@ -46,11 +46,11 @@ export const generateMetadata = (selectedTraits, tokenId) => {
 
   return {
     attributes,
-    name: `mfer avatar maker #${tokenId}`,
-    description: "mfer avatar maker by heresmy.eth, inspired by sartoshi",
+    name: `mfer avatar playground #${tokenId}`,
+    description: "mfer avatar playground by heresmy.eth, inspired by sartoshi",
     animation_url: "", // Will be updated with DO URL
     image: "", // Will be updated with DO URL
-    external_url: `https://ar.mferavatars.xyz/details.html?id=${tokenId}&maker=true`,
+    external_url: `https://ar.mferavatars.xyz/details.html?id=${tokenId}&playground=true`,
     background_color: selectedTraits.background ? COLOR_MAP[selectedTraits.background] : "ffffff",
     glb_url: "" // Will be updated with DO URL
   };
