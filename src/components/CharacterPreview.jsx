@@ -19,6 +19,7 @@ const LOADING_MODEL_URL = "/avatar-maker/sartoshi-head.glb";
 // Create a model manager to handle loading and caching
 const modelManager = {
   loadedModels: new Map(),
+  textureCache: new Map(),
   loadModel: async (url) => {
     if (modelManager.loadedModels.has(url)) {
       return modelManager.loadedModels.get(url);
@@ -56,48 +57,110 @@ const modelManager = {
 
         loader.load(
           url,
-          (gltf) => {
-            // Restore original URL
-            window.URL = OriginalURL;
+          async (gltf) => {
+            try {
+              // Restore original URL
+              window.URL = OriginalURL;
 
-            // Process all materials and textures
-            gltf.scene.traverse((node) => {
-              if (node.material) {
-                const material = node.material;
-                // Process all texture maps in the material
-                const maps = [
-                  'map', 'normalMap', 'roughnessMap', 'metalnessMap',
-                  'emissiveMap', 'aoMap', 'displacementMap'
-                ];
+              // Process materials and textures after loading
+              const textureLoader = new THREE.TextureLoader();
+              textureLoader.setCrossOrigin('anonymous');
+
+              const processNode = async (node) => {
+                if (!node.material) return;
+
+                const materials = Array.isArray(node.material) ? node.material : [node.material];
                 
-                maps.forEach(mapType => {
-                  if (material[mapType]) {
-                    const texture = material[mapType];
-                    // Apply texture optimizations
-                    texture.encoding = THREE.sRGBEncoding;
-                    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-                    texture.minFilter = THREE.LinearMipmapLinearFilter;
-                    texture.magFilter = THREE.LinearFilter;
-                    texture.flipY = false;
-                    texture.needsUpdate = true;
-                  }
-                });
-              }
-            });
+                for (const material of materials) {
+                  const maps = [
+                    'map', 'normalMap', 'roughnessMap', 'metalnessMap',
+                    'emissiveMap', 'aoMap', 'displacementMap'
+                  ];
 
-            resolve(gltf);
+                  for (const mapType of maps) {
+                    if (!material[mapType]) continue;
+
+                    const texture = material[mapType];
+                    
+                    // Skip if texture is already processed
+                    if (texture._processed) continue;
+                    
+                    try {
+                      // For blob URLs, fetch and create new texture
+                      if (texture.image && texture.image.src && texture.image.src.startsWith('blob:')) {
+                        const response = await fetch(texture.image.src);
+                        const blob = await response.blob();
+                        const dataUrl = await new Promise((resolve) => {
+                          const reader = new FileReader();
+                          reader.onloadend = () => resolve(reader.result);
+                          reader.readAsDataURL(blob);
+                        });
+
+                        const newTexture = await new Promise((resolve) => {
+                          textureLoader.load(dataUrl, (t) => {
+                            t.encoding = texture.encoding;
+                            t.wrapS = texture.wrapS;
+                            t.wrapT = texture.wrapT;
+                            t.minFilter = texture.minFilter;
+                            t.magFilter = texture.magFilter;
+                            t.flipY = false;
+                            t.needsUpdate = true;
+                            t._processed = true;
+                            resolve(t);
+                          });
+                        });
+
+                        material[mapType] = newTexture;
+                      } else {
+                        // For non-blob textures, just ensure proper settings
+                        texture.needsUpdate = true;
+                        texture.encoding = THREE.sRGBEncoding;
+                        texture.flipY = false;
+                        texture._processed = true;
+                      }
+                    } catch (error) {
+                      console.warn(`Error processing texture for ${mapType}:`, error);
+                      // Create fallback texture on error
+                      const canvas = document.createElement('canvas');
+                      canvas.width = canvas.height = 64;
+                      const ctx = canvas.getContext('2d');
+                      ctx.fillStyle = '#808080';
+                      ctx.fillRect(0, 0, 64, 64);
+                      
+                      const fallbackTexture = new THREE.Texture(canvas);
+                      fallbackTexture.needsUpdate = true;
+                      fallbackTexture.encoding = THREE.sRGBEncoding;
+                      fallbackTexture.flipY = false;
+                      fallbackTexture._processed = true;
+                      material[mapType] = fallbackTexture;
+                    }
+                  }
+                }
+              };
+
+              // Process all nodes in the scene
+              const processQueue = [gltf.scene];
+              while (processQueue.length > 0) {
+                const node = processQueue.pop();
+                await processNode(node);
+                node.children.forEach(child => processQueue.push(child));
+              }
+
+              resolve(gltf);
+            } catch (error) {
+              console.error('Error processing model:', error);
+              reject(error);
+            }
           },
           (progress) => {
-            // Log progress for large models
             if (progress.lengthComputable) {
               const percent = (progress.loaded / progress.total * 100).toFixed(1);
-              if (percent % 20 === 0) { // Log every 20%
+              if (percent % 20 === 0) {
                 console.log(`Loading model: ${percent}%`);
               }
             }
           },
           (error) => {
-            // Restore original URL and clean up
             window.URL = OriginalURL;
             blobUrls.forEach(url => {
               try {
@@ -156,6 +219,14 @@ const modelManager = {
       });
       modelManager.loadedModels.delete(url);
     }
+  },
+  clearTextureCache: () => {
+    modelManager.textureCache.forEach(texture => {
+      if (texture && texture.dispose) {
+        texture.dispose();
+      }
+    });
+    modelManager.textureCache.clear();
   }
 };
 
@@ -189,70 +260,88 @@ const useLoadTextureWithRetry = () => {
         blobUrls.clear();
       };
 
-      const attemptLoad = (attemptsLeft) => {
-        // If URL is a blob URL, add it to our tracking set
-        if (url.startsWith('blob:')) {
-          blobUrls.add(url);
-        }
+      const attemptLoad = async (attemptsLeft) => {
+        try {
+          // If URL is a blob URL, try to fetch it first to ensure it's still valid
+          if (url.startsWith('blob:')) {
+            blobUrls.add(url);
+            const response = await fetch(url);
+            const blob = await response.blob();
+            // Create a new blob URL that we control
+            url = URL.createObjectURL(blob);
+            blobUrls.add(url);
+          }
 
-        loader.load(
-          url,
-          (texture) => {
-            try {
-              // Ensure texture is properly initialized
-              texture.needsUpdate = true;
-              texture.encoding = THREE.sRGBEncoding;
-              
-              // Set good defaults for common texture properties
-              texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-              texture.minFilter = THREE.LinearMipmapLinearFilter;
-              texture.magFilter = THREE.LinearFilter;
-              texture.flipY = false; // Often needed for GLTF textures
-              
-              cleanup(); // Clean up any blob URLs
-              resolve(texture);
-            } catch (error) {
-              console.warn('Error initializing texture:', error);
+          loader.load(
+            url,
+            (texture) => {
+              try {
+                // Ensure texture is properly initialized
+                texture.needsUpdate = true;
+                texture.encoding = THREE.sRGBEncoding;
+                
+                // Set good defaults for common texture properties
+                texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+                texture.minFilter = THREE.LinearMipmapLinearFilter;
+                texture.magFilter = THREE.LinearFilter;
+                texture.flipY = false;
+                
+                // Only clean up blob URLs after texture is successfully loaded
+                cleanup();
+                resolve(texture);
+              } catch (error) {
+                console.warn('Error initializing texture:', error);
+                if (attemptsLeft > 0) {
+                  console.log(`Retrying texture initialization (${attemptsLeft} attempts left)`);
+                  setTimeout(() => attemptLoad(attemptsLeft - 1), RETRY_DELAY);
+                } else {
+                  cleanup();
+                  reject(error);
+                }
+              }
+            },
+            (progressEvent) => {
+              if (progressEvent.lengthComputable) {
+                const progress = (progressEvent.loaded / progressEvent.total * 100).toFixed(1);
+                if (progress % 20 === 0) {
+                  console.log(`Loading texture: ${progress}%`);
+                }
+              }
+            },
+            async (error) => {
+              console.warn(`Texture load error (${attemptsLeft} attempts left):`, error);
               if (attemptsLeft > 0) {
-                console.log(`Retrying texture initialization (${attemptsLeft} attempts left)`);
+                // Clean up the current blob URL before retrying
+                cleanup();
+                console.log(`Retrying texture load in ${RETRY_DELAY}ms...`);
                 setTimeout(() => attemptLoad(attemptsLeft - 1), RETRY_DELAY);
               } else {
+                console.warn('Creating fallback texture after all retries failed');
                 cleanup();
-                reject(error);
+                
+                // Create a simple fallback texture
+                const canvas = document.createElement('canvas');
+                canvas.width = canvas.height = 64;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#808080';
+                ctx.fillRect(0, 0, 64, 64);
+                
+                const fallbackTexture = new THREE.Texture(canvas);
+                fallbackTexture.needsUpdate = true;
+                resolve(fallbackTexture);
               }
             }
-          },
-          (progressEvent) => {
-            // Optional: Log progress for large textures
-            if (progressEvent.lengthComputable) {
-              const progress = (progressEvent.loaded / progressEvent.total * 100).toFixed(1);
-              if (progress % 20 === 0) { // Log every 20%
-                console.log(`Loading texture: ${progress}%`);
-              }
-            }
-          },
-          (error) => {
-            console.warn(`Texture load error (${attemptsLeft} attempts left):`, error);
-            if (attemptsLeft > 0) {
-              console.log(`Retrying texture load in ${RETRY_DELAY}ms...`);
-              setTimeout(() => attemptLoad(attemptsLeft - 1), RETRY_DELAY);
-            } else {
-              console.warn('Creating fallback texture after all retries failed');
-              cleanup();
-              
-              // Create a simple fallback texture
-              const canvas = document.createElement('canvas');
-              canvas.width = canvas.height = 64;
-              const ctx = canvas.getContext('2d');
-              ctx.fillStyle = '#808080';
-              ctx.fillRect(0, 0, 64, 64);
-              
-              const fallbackTexture = new THREE.Texture(canvas);
-              fallbackTexture.needsUpdate = true;
-              resolve(fallbackTexture);
-            }
+          );
+        } catch (error) {
+          console.error('Error in texture load attempt:', error);
+          if (attemptsLeft > 0) {
+            cleanup();
+            setTimeout(() => attemptLoad(attemptsLeft - 1), RETRY_DELAY);
+          } else {
+            cleanup();
+            reject(error);
           }
-        );
+        }
       };
       
       attemptLoad(retries);

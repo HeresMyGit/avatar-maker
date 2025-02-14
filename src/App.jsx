@@ -903,30 +903,55 @@ function Playground({ themeColor, setThemeColor }) {
       const tempUploadResult = await uploadToSpace(imageBlob, animatedGlb, tposeGlb, null, tempId);
       console.log('Asset files uploaded with temporary ID');
 
-      // TESTING: Use token ID 69 instead of minting
-      const actualTokenId = "69";
-      console.log('Using test token ID:', actualTokenId);
+      // Mint the NFT
+      console.log('Minting NFT...');
+      const mintTx = await mintNFT(signer, {
+        value: mintPrice
+      });
+      console.log('Mint transaction:', mintTx);
 
-      // Generate metadata with the test token ID
-      console.log('Generating metadata with test token ID:', actualTokenId);
-      const finalMetadata = generateMetadata(selectedTraits, actualTokenId);
+      // Wait for transaction to be mined
+      console.log('Waiting for transaction to be mined...');
+      const receipt = await mintTx.wait();
+      console.log('Transaction mined:', receipt);
+
+      // Get the token ID from the mint event
+      const mintEvent = receipt.logs.find(log => {
+        try {
+          const parsedLog = contract.interface.parseLog(log);
+          return parsedLog.name === 'Transfer' && parsedLog.args.from === ethers.ZeroAddress;
+        } catch (e) {
+          return false;
+        }
+      });
+
+      if (!mintEvent) {
+        throw new Error('Could not find mint event in transaction receipt');
+      }
+
+      const tokenId = mintEvent.args.tokenId.toString();
+      console.log('Minted token ID:', tokenId);
+
+      // Generate metadata with actual token ID
+      console.log('Generating metadata with token ID:', tokenId);
+      const finalMetadata = generateMetadata(selectedTraits, tokenId);
 
       // Upload final files with metadata, passing tempId for cleanup
-      console.log('Uploading final files with test token ID:', actualTokenId);
+      console.log('Uploading final files with token ID:', tokenId);
       const finalUploadResult = await uploadToSpace(
         imageBlob, 
         animatedGlb, 
         tposeGlb, 
         finalMetadata, 
-        actualTokenId,
+        tokenId,
         tempId // Pass the tempId for cleanup
       );
       console.log('Files and metadata uploaded successfully');
 
-      // Handle successful "mint"
-      navigate(`/details?id=${actualTokenId}&playground=true`);
+      // Navigate to details page
+      navigate(`/details?id=${tokenId}&playground=true`);
     } catch (error) {
-      console.error('Error in test minting process:', error);
+      console.error('Error in minting process:', error);
       setMintError(error.message);
     } finally {
       setIsMinting(false);
