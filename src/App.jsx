@@ -903,6 +903,9 @@ function Playground({ themeColor, setThemeColor }) {
       const tempUploadResult = await uploadToSpace(imageBlob, animatedGlb, tposeGlb, null, tempId);
       console.log('Asset files uploaded with temporary ID');
 
+      // Get contract instance
+      const contract = await getContract(signer);
+
       // Mint the NFT
       console.log('Minting NFT...');
       const mintTx = await mintNFT(signer, {
@@ -919,7 +922,7 @@ function Playground({ themeColor, setThemeColor }) {
       const mintEvent = receipt.logs.find(log => {
         try {
           const parsedLog = contract.interface.parseLog(log);
-          return parsedLog.name === 'Transfer' && parsedLog.args.from === ethers.ZeroAddress;
+          return parsedLog.name === 'Transfer' && parsedLog.args.from === '0x0000000000000000000000000000000000000000';
         } catch (e) {
           return false;
         }
@@ -929,7 +932,8 @@ function Playground({ themeColor, setThemeColor }) {
         throw new Error('Could not find mint event in transaction receipt');
       }
 
-      const tokenId = mintEvent.args.tokenId.toString();
+      const parsedLog = contract.interface.parseLog(mintEvent);
+      const tokenId = parsedLog.args.tokenId.toString();
       console.log('Minted token ID:', tokenId);
 
       // Generate metadata with actual token ID

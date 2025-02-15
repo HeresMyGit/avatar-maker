@@ -850,7 +850,12 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
       const originalPosition = camera.position.clone();
       const originalRotation = camera.rotation.clone();
       const originalFov = camera.fov;
+      const originalAspect = camera.aspect;
       const originalTarget = camera.target?.clone();
+
+      // Set camera to square aspect ratio (1:1)
+      camera.aspect = 1;
+      camera.updateProjectionMatrix();
 
       // Set camera to zoomed portrait position
       let defaultPosition = isMobile ? 
@@ -870,9 +875,16 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
       camera.lookAt(0, 0.9, 0);
       camera.updateProjectionMatrix(); // Required after FOV change
 
-      // Store current pixel ratio and set to 2 for better quality
+      // Store original renderer size and pixel ratio
+      const originalSize = {
+        width: gl.domElement.width,
+        height: gl.domElement.height
+      };
       const originalPixelRatio = window.devicePixelRatio;
-      gl.setPixelRatio(2);
+
+      // Set renderer size to 1024x1024
+      gl.setSize(1024, 1024);
+      gl.setPixelRatio(1); // Set to 1 since we're already at target resolution
 
       // Store original clear color
       const originalClearColor = gl.getClearColor(new THREE.Color());
@@ -892,10 +904,12 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
         gl.domElement.toBlob((blob) => {
           // Restore all original settings
           gl.setClearColor(originalClearColor, originalClearAlpha);
+          gl.setSize(originalSize.width, originalSize.height);
           gl.setPixelRatio(originalPixelRatio);
           camera.position.copy(originalPosition);
           camera.rotation.copy(originalRotation);
           camera.fov = originalFov;
+          camera.aspect = originalAspect;
           camera.updateProjectionMatrix();
           if (originalTarget) {
             camera.target = originalTarget;
