@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import styled from '@emotion/styled';
-import { getProvider, getOwnedTokens } from '../utils/contract';
-import { WalletConnectModal } from '@walletconnect/modal';
+import { useAccount } from 'wagmi'
+import { getOwnedTokens } from '../utils/contract';
+import { useWeb3Modal } from '@web3modal/wagmi/react'
 
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
 
@@ -12,64 +13,19 @@ const metadata = {
   icons: ['https://avatars.githubusercontent.com/u/37784886']
 };
 
-// Initialize WalletConnect Modal
-const modal = new WalletConnectModal({
-  projectId,
-  themeMode: 'dark',
-  themeVariables: {
-    '--wcm-font-family': 'SartoshiScript',
-    '--wcm-background-color': '#13151a',
-    '--wcm-accent-color': '#feb66e'
-  }
-});
-
 const MyMfers = () => {
   const [nfts, setNfts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [account, setAccount] = useState(null);
-  const [provider, setProvider] = useState(null);
-
-  useEffect(() => {
-    const initProvider = async () => {
-      const provider = getProvider();
-      setProvider(provider);
-
-      if (window.ethereum) {
-        try {
-          const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-          if (accounts.length > 0) {
-            setAccount(accounts[0]);
-          }
-        } catch (error) {
-          console.error('Error getting accounts:', error);
-        }
-
-        window.ethereum.on('accountsChanged', (accounts) => {
-          if (accounts.length > 0) {
-            setAccount(accounts[0]);
-          } else {
-            setAccount(null);
-          }
-        });
-      }
-    };
-
-    initProvider();
-
-    return () => {
-      if (window.ethereum) {
-        window.ethereum.removeListener('accountsChanged', () => {});
-      }
-    };
-  }, []);
+  const { address, isConnected } = useAccount()
+  const { open } = useWeb3Modal()
 
   useEffect(() => {
     const fetchNFTs = async () => {
-      if (!provider || !account) return;
+      if (!isConnected || !address) return;
 
       try {
         setLoading(true);
-        const tokens = await getOwnedTokens(provider, account);
+        const tokens = await getOwnedTokens(address);
         setNfts(tokens);
       } catch (error) {
         console.error('Error fetching NFTs:', error);
@@ -79,17 +35,17 @@ const MyMfers = () => {
     };
 
     fetchNFTs();
-  }, [provider, account]);
+  }, [address, isConnected]);
 
   const handleConnect = async () => {
     try {
-      await modal.open();
+      await open();
     } catch (error) {
       console.error('Error connecting wallet:', error);
     }
   };
 
-  if (!account) {
+  if (!isConnected) {
     return (
       <Container>
         <ConnectButton onClick={handleConnect}>

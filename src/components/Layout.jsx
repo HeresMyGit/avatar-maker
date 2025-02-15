@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import styled from '@emotion/styled';
 import { keyframes } from '@emotion/react';
 import { COLOR_MAP } from '../config/colors';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getProvider, getSigner } from '../utils/contract';
+import { useWeb3Modal } from '@web3modal/wagmi/react'
+import { useAccount, useDisconnect } from 'wagmi'
 
 const queryClient = new QueryClient();
 
@@ -376,31 +377,20 @@ const Layout = ({ children, themeColor, onThemeChange }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
   const location = useLocation();
+  const { open } = useWeb3Modal()
+  const { address, isConnected } = useAccount()
+  const { disconnect } = useDisconnect()
 
   const handleColorChange = (color) => {
     onThemeChange(`#${color}`);
   };
 
   const handleConnect = async () => {
-    try {
-      // Check if MetaMask is installed
-      if (!window.ethereum) {
-        alert('Please install MetaMask to connect your wallet');
-        return;
-      }
+    await open();
+  };
 
-      // Request account access
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      const account = accounts[0];
-      console.log('Connected account:', account);
-      
-      // Get the signer
-      const signer = await getSigner();
-      return signer;
-    } catch (error) {
-      console.error('Error connecting wallet:', error);
-      alert('Error connecting wallet. Please try again.');
-    }
+  const handleDisconnect = async () => {
+    await disconnect();
   };
 
   return (
@@ -443,8 +433,9 @@ const Layout = ({ children, themeColor, onThemeChange }) => {
             ))}
             <SettingsContainer>
               <SettingsButton 
-                data-color={themeColor}
                 onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                themeColor={themeColor}
+                isOpen={isSettingsOpen}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
@@ -455,9 +446,15 @@ const Layout = ({ children, themeColor, onThemeChange }) => {
                 <SettingsSection>
                   <SettingsTitle data-theme-color={themeColor}>Wallet</SettingsTitle>
                   <WalletContainer data-theme-color={themeColor}>
-                    <ConnectButton onClick={handleConnect}>
-                      Connect Wallet
-                    </ConnectButton>
+                    {isConnected ? (
+                      <ConnectButton onClick={handleDisconnect}>
+                        Disconnect {address.slice(0, 6)}...{address.slice(-4)}
+                      </ConnectButton>
+                    ) : (
+                      <ConnectButton onClick={handleConnect}>
+                        Connect Wallet
+                      </ConnectButton>
+                    )}
                   </WalletContainer>
                 </SettingsSection>
                 <SettingsSection>
