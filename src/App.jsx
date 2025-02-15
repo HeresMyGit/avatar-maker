@@ -1004,7 +1004,7 @@ function Playground({ themeColor, setThemeColor }) {
               themeColor={themeColor}
             >
               <span>📸</span>
-              <span>Screenshot</span>
+              <span>Photo</span>
             </Button>
             <ExportDropdownContainer className="export-dropdown">
               <Button 
