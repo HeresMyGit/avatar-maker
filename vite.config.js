@@ -27,6 +27,16 @@ export default defineConfig({
   build: {
     commonjsOptions: {
       include: [/node_modules/]
+    },
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        'playground-gallery': 'playground-gallery.html',
+        'based': 'based.html',
+        'customs': 'customs.html',
+        'details': 'details.html',
+        'ogmfers': 'ogmfers.html'
+      }
     }
   },
   server: {
