@@ -2,33 +2,17 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>Avatar Playground - Redirecting...</title>
+    <title>Redirecting...</title>
     <script type="text/javascript">
-      // Single Page Apps for GitHub Pages
-      // MIT License
-      // https://github.com/rafgraph/spa-github-pages
-      (function(l) {
-        if (l.search[1] === '/') {
-          var decoded = l.search.slice(1).split('&').map(function(s) { 
-            return s.replace(/~and~/g, '&')
-          }).join('?');
-          window.history.replaceState(null, null,
-            l.pathname.slice(0, -1) + decoded + l.hash
-          );
-        }
-      }(window.location));
-
-      // Save the path to sessionStorage
-      (function(location) {
-        const path = location.pathname.split('/avatar-maker')[1] || '/';
-        sessionStorage.setItem('path', path);
-        
-        // Redirect to the index page
-        window.location.replace('/avatar-maker/');
-      }(window.location));
+      // Get the current path and store it in sessionStorage
+      const path = window.location.pathname + window.location.search + window.location.hash;
+      sessionStorage.setItem('path', path);
+      
+      // Redirect to the base URL
+      window.location.href = '/avatar-maker/';
     </script>
   </head>
   <body>
-    <p>Redirecting to Avatar Playground...</p>
+    Redirecting...
   </body>
 </html> 
