@@ -6,7 +6,7 @@ const getRandomItem = (array) => {
   return array[Math.floor(Math.random() * array.length)];
 };
 
-class CharacterCreator {
+class CharacterPlayground {
   constructor() {
     this.selectedTraits = this.generateRandomTraits();
   }
@@ -254,4 +254,4 @@ class CharacterCreator {
   }
 }
 
-export default CharacterCreator; 
+export default CharacterPlayground; 

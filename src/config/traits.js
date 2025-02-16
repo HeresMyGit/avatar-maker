@@ -157,7 +157,7 @@ export const TRAIT_CATEGORIES = {
   watch: {
     name: '4:20 Watch',
     options: [
-      { id: 'sub_lantern', label: 'Sub Lantern (Green)', model: 'sub lantern (green).glb' },
+      { id: 'sub_lantern_green', label: 'Sub Lantern (Green)', model: 'sub lantern (green).glb' },
       { id: 'sub_blue', label: 'Sub Blue', model: 'sub blue.glb' },
       { id: 'argo_white', label: 'Argo White', model: 'argo white.glb' },
       { id: 'sub_cola', label: 'Sub Cola (Blue/Red)', model: 'sub cola (blue-red).glb' },

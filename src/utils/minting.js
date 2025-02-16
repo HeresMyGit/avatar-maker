@@ -36,6 +36,9 @@ const formatTraitValue = (traitType, value) => {
 
 // Function to generate metadata for the NFT
 export const generateMetadata = (selectedTraits, tokenId) => {
+  const basePath = 'cybermfers/playground';
+  const baseUrl = `https://${import.meta.env.VITE_DO_SPACES_BUCKET}.sfo3.digitaloceanspaces.com`;
+
   // Format attributes with proper trait value formatting
   const attributes = Object.entries(selectedTraits)
     .filter(([_, value]) => value) // Remove empty traits
@@ -46,13 +49,13 @@ export const generateMetadata = (selectedTraits, tokenId) => {
 
   return {
     attributes,
-    name: `mfer avatar maker #${tokenId}`,
-    description: "mfer avatar maker by heresmy.eth, inspired by sartoshi",
-    animation_url: "", // Will be updated with DO URL
-    image: "", // Will be updated with DO URL
-    external_url: `https://ar.mferavatars.xyz/details.html?id=${tokenId}&maker=true`,
-    background_color: selectedTraits.background ? COLOR_MAP[selectedTraits.background] : "ffffff",
-    glb_url: "" // Will be updated with DO URL
+    name: `mfer avatar playground #${tokenId}`,
+    description: "mfer avatar playground by heresmy.eth, inspired by sartoshi",
+    animation_url: `${baseUrl}/${basePath}/public/assets/glb/${tokenId}.glb`,
+    image: `${baseUrl}/${basePath}/public/assets/png/${tokenId}.png`,
+    external_url: `${baseUrl}/${basePath}/public/metadata/${tokenId}.json`,
+    background_color: selectedTraits.background ? COLOR_MAP[selectedTraits.background].replace('#', '') : "ffffff",
+    glb_url: `${baseUrl}/${basePath}/public/assets/t-pose/${tokenId}.glb`
   };
 };
 
