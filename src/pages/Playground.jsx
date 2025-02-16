@@ -759,6 +759,11 @@ function Playground({ themeColor, setThemeColor }) {
         address
       });
       
+      // Rename files from temp ID to actual token ID and add metadata
+      console.log('Renaming files from temp ID to token ID...');
+      const metadata = generateMetadata(selectedTraits, mintResult.tokenId);
+      await uploadToSpace(null, null, null, metadata, mintResult.tokenId, tempId);
+      
       // Navigate to details page with the actual token ID
       console.log('Navigating to details page with params:', {
         tokenId: mintResult.tokenId,

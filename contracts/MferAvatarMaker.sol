@@ -14,6 +14,8 @@ contract MferAvatarPlayground is ERC721, ERC721URIStorage, Ownable, Pausable {
 
     // Base URI for token metadata
     string private _baseTokenURI;
+    // Extension for token metadata files (e.g. ".json")
+    string private _tokenURIExtension;
 
     // Payment token configuration
     mapping(address => uint256) public paymentAmounts;
@@ -30,6 +32,7 @@ contract MferAvatarPlayground is ERC721, ERC721URIStorage, Ownable, Pausable {
     event FreeMintAllowanceUpdated(address indexed recipient, uint256 amount);
     event FreeMintUsed(address indexed user, uint256 tokenId);
     event BaseURIUpdated(string newBaseURI);
+    event TokenURIExtensionUpdated(string newExtension);
 
     constructor() ERC721("mfer avatar playground", "MFER") Ownable(msg.sender) {
         // Set initial ETH price (0.1 ETH)
@@ -45,6 +48,12 @@ contract MferAvatarPlayground is ERC721, ERC721URIStorage, Ownable, Pausable {
     function setBaseURI(string memory newBaseURI) public onlyOwner {
         _baseTokenURI = newBaseURI;
         emit BaseURIUpdated(newBaseURI);
+    }
+
+    // Admin: Set token URI extension
+    function setTokenURIExtension(string memory newExtension) public onlyOwner {
+        _tokenURIExtension = newExtension;
+        emit TokenURIExtensionUpdated(newExtension);
     }
 
     // Mint with ETH
@@ -218,6 +227,11 @@ contract MferAvatarPlayground is ERC721, ERC721URIStorage, Ownable, Pausable {
         IERC20(token).transfer(owner(), balance);
     }
 
+    // View: Get total supply
+    function totalSupply() public view returns (uint256) {
+        return _tokenIds.current();
+    }
+
     // Required overrides
     function _update(address to, uint256 tokenId, address auth)
         internal
@@ -233,7 +247,31 @@ contract MferAvatarPlayground is ERC721, ERC721URIStorage, Ownable, Pausable {
         override(ERC721, ERC721URIStorage)
         returns (string memory)
     {
-        return super.tokenURI(tokenId);
+        string memory baseURI = _baseURI();
+        if (bytes(baseURI).length == 0) {
+            return "";
+        }
+        return string(abi.encodePacked(baseURI, _toString(tokenId), _tokenURIExtension));
+    }
+
+    // Internal helper function to convert uint256 to string
+    function _toString(uint256 value) internal pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
     }
 
     function supportsInterface(bytes4 interfaceId)

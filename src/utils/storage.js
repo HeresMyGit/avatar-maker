@@ -3,21 +3,20 @@ import { S3Client, PutObjectCommand, CopyObjectCommand, DeleteObjectCommand, Get
 // Initialize S3 client
 const initS3Client = () => {
   return new S3Client({
-    endpoint: import.meta.env.VITE_DO_SPACES_ENDPOINT || "https://sfo3.digitaloceanspaces.com",
     region: "sfo3",
+    endpoint: "https://sfo3.digitaloceanspaces.com",
     credentials: {
       accessKeyId: import.meta.env.VITE_DO_SPACES_KEY,
       secretAccessKey: import.meta.env.VITE_DO_SPACES_SECRET
-    },
-    forcePathStyle: false // This is important for DigitalOcean Spaces
+    }
   });
 };
 
 // Upload a single file to Digital Ocean Space
-const uploadFile = async (file, path, contentType) => {
+const uploadFile = async (file, path, contentType, basePath) => {
   const client = initS3Client();
-  // Add cybermfers prefix to match bucket structure
-  const key = `cybermfers/playground${path}`;
+  // The path should already include the public/assets part
+  const key = `${basePath}${path}`;
 
   // Convert Blob/File to ArrayBuffer
   const arrayBuffer = await file.arrayBuffer();
@@ -64,20 +63,21 @@ export const uploadToSpace = async (imageBlob, animatedGlb, tposeGlb, metadata, 
 
     // Helper function to get file paths
     const getPaths = (id) => ({
-      image: `${publicPath}/assets/png/${id}.png`,
-      animated: `${publicPath}/assets/glb/${id}.glb`,
-      tpose: `${publicPath}/assets/t-pose/${id}.glb`,
-      metadata: `${publicPath}/metadata/${id}.json`
+      image: `/public/assets/png/${id}.png`,
+      animated: `/public/assets/glb/${id}.glb`,
+      tpose: `/public/assets/t-pose/${id}.glb`,
+      metadata: `/public/metadata/${id}.json`
     });
 
     // Helper function to get public URLs
     const getPublicUrls = (id) => ({
-      image: `${baseUrl}/${publicPath}/assets/png/${id}.png`,
-      animated: `${baseUrl}/${publicPath}/assets/glb/${id}.glb`,
-      tpose: `${baseUrl}/${publicPath}/assets/t-pose/${id}.glb`,
-      metadata: `${baseUrl}/${publicPath}/metadata/${id}.json`
+      image: `${baseUrl}/${basePath}/public/assets/png/${id}.png`,
+      animated: `${baseUrl}/${basePath}/public/assets/glb/${id}.glb`,
+      tpose: `${baseUrl}/${basePath}/public/assets/t-pose/${id}.glb`,
+      metadata: `${baseUrl}/${basePath}/public/metadata/${id}.json`
     });
 
+    const client = initS3Client();
     const id = tempId || tokenId;
     const paths = getPaths(id);
     const urls = getPublicUrls(id);
@@ -90,22 +90,73 @@ export const uploadToSpace = async (imageBlob, animatedGlb, tposeGlb, metadata, 
 
     // Upload files and track progress
     try {
-      console.log('Starting image upload...');
-      // Upload image file logic here
-      console.log('Image upload complete');
+      // If we have both tempId and tokenId, we need to rename the files
+      if (tempId && tokenId) {
+        console.log('Renaming files from tempId to tokenId...');
+        const tempPaths = getPaths(tempId);
+        const tokenPaths = getPaths(tokenId);
 
-      console.log('Starting animated GLB upload...');
-      // Upload animated GLB logic here
-      console.log('Animated GLB upload complete');
+        // Helper function to copy a file
+        const copyFile = async (sourcePath, destPath) => {
+          const copyCommand = new CopyObjectCommand({
+            Bucket: import.meta.env.VITE_DO_SPACES_BUCKET,
+            CopySource: `${import.meta.env.VITE_DO_SPACES_BUCKET}/${basePath}${sourcePath}`,
+            Key: `${basePath}${destPath}`,
+            ACL: "public-read"
+          });
+          await client.send(copyCommand);
+        };
 
-      console.log('Starting T-pose GLB upload...');
-      // Upload T-pose GLB logic here
-      console.log('T-pose GLB upload complete');
+        // Helper function to delete a file
+        const deleteFile = async (path) => {
+          const deleteCommand = new DeleteObjectCommand({
+            Bucket: import.meta.env.VITE_DO_SPACES_BUCKET,
+            Key: `${basePath}${path}`
+          });
+          await client.send(deleteCommand);
+        };
 
-      if (metadata) {
-        console.log('Starting metadata upload...');
-        // Upload metadata logic here
-        console.log('Metadata upload complete');
+        // Copy and delete each file
+        await Promise.all([
+          // Copy files
+          copyFile(tempPaths.image, tokenPaths.image),
+          copyFile(tempPaths.animated, tokenPaths.animated),
+          copyFile(tempPaths.tpose, tokenPaths.tpose),
+          // Delete old files
+          deleteFile(tempPaths.image),
+          deleteFile(tempPaths.animated),
+          deleteFile(tempPaths.tpose)
+        ]);
+
+        console.log('File renaming completed');
+
+        // Always create metadata with the actual token ID after renaming
+        if (metadata) {
+          console.log('Creating metadata with token ID...');
+          const metadataBlob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
+          await uploadFile(metadataBlob, tokenPaths.metadata, 'application/json', basePath);
+          console.log('Metadata upload complete');
+        }
+      } else {
+        console.log('Starting image upload...');
+        await uploadFile(imageBlob, paths.image, 'image/png', basePath);
+        console.log('Image upload complete');
+
+        console.log('Starting animated GLB upload...');
+        await uploadFile(animatedGlb, paths.animated, 'model/gltf-binary', basePath);
+        console.log('Animated GLB upload complete');
+
+        console.log('Starting T-pose GLB upload...');
+        await uploadFile(tposeGlb, paths.tpose, 'model/gltf-binary', basePath);
+        console.log('T-pose GLB upload complete');
+
+        // Upload metadata with temporary ID for initial upload
+        if (metadata) {
+          console.log('Creating metadata with temporary ID...');
+          const metadataBlob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
+          await uploadFile(metadataBlob, paths.metadata, 'application/json', basePath);
+          console.log('Metadata upload complete');
+        }
       }
 
       const result = {
