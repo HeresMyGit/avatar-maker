@@ -178,16 +178,27 @@ export const mintNFT = async (options = {}) => {
       throw new Error('Contract address is not configured');
     }
 
-    console.log('Minting NFT with options:', {
-      ...options,
-      value: options.value ? options.value.toString() : '0'
+    console.log('Starting mintNFT with contract details:', {
+      contractAddress: CONTRACT_ADDRESS,
+      chainId: sepolia.id,
+      options: {
+        ...options,
+        value: options.value ? options.value.toString() : '0'
+      }
     });
 
     if (!options.value) {
       throw new Error('Mint price is required');
     }
 
-    const { hash } = await writeContract(config, {
+    console.log('Preparing contract write...', {
+      abi: 'mint function',
+      functionName: 'mint',
+      args: [],
+      value: options.value.toString()
+    });
+
+    const hash = await writeContract(config, {
       abi: CONTRACT_ABI,
       address: CONTRACT_ADDRESS,
       functionName: 'mint',
@@ -196,11 +207,73 @@ export const mintNFT = async (options = {}) => {
       chainId: sepolia.id
     });
 
-    console.log('Mint transaction hash:', hash);
-    return hash;
+    console.log('Contract write response:', hash);
+
+    if (!hash) {
+      console.error('Invalid write result:', {
+        hash,
+        type: typeof hash
+      });
+      throw new Error('Contract write failed to return transaction hash');
+    }
+
+    console.log('Waiting for transaction to be mined...');
+    
+    // Wait for the transaction to be mined
+    const receipt = await publicClient.waitForTransactionReceipt({ 
+      hash: hash 
+    });
+
+    console.log('Transaction receipt:', receipt);
+
+    // Find the Transfer event in the logs
+    const transferEvent = receipt.logs.find(log => {
+      // The Transfer event has 3 indexed parameters (from, to, tokenId)
+      return log.topics.length === 4 && 
+             log.address.toLowerCase() === CONTRACT_ADDRESS.toLowerCase();
+    });
+
+    if (!transferEvent) {
+      throw new Error('Could not find Transfer event in transaction logs');
+    }
+
+    // The tokenId is the third topic (index 3)
+    const tokenId = BigInt(transferEvent.topics[3]).toString();
+
+    console.log('Mint successful:', {
+      transactionHash: hash,
+      tokenId,
+      contractAddress: CONTRACT_ADDRESS,
+      chainId: sepolia.id
+    });
+
+    return {
+      hash,
+      tokenId
+    };
   } catch (error) {
-    console.error('Error in mintNFT:', error);
-    throw error;
+    console.error('Error in mintNFT contract interaction:', {
+      error,
+      message: error.message,
+      code: error.code,
+      data: error.data,
+      contractAddress: CONTRACT_ADDRESS,
+      chainId: sepolia.id,
+      stack: error.stack
+    });
+
+    // If it's a user rejection, throw a more specific error
+    if (error.code === 'ACTION_REJECTED' || error.message?.includes('rejected')) {
+      throw new Error('Transaction was rejected by user');
+    }
+
+    // If it's a network error, throw a more specific error
+    if (error.message?.includes('network') || error.code === 'NETWORK_ERROR') {
+      throw new Error('Network error occurred while minting. Please check your connection and try again.');
+    }
+
+    // For other errors, include more context
+    throw new Error(`Minting failed: ${error.message || 'Unknown error occurred'}`);
   }
 };
 

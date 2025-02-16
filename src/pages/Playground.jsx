@@ -4,6 +4,7 @@ import styled from '@emotion/styled';
 import { css, keyframes } from '@emotion/react';
 import { Canvas } from '@react-three/fiber';
 import { formatEther } from 'viem';
+import { sepolia } from 'viem/chains';
 import CharacterPreview from '../components/CharacterPreview';
 import TraitSelector from '../components/TraitSelector';
 import CharacterPlayground from '../components/CharacterPlayground';
@@ -683,10 +684,27 @@ function Playground({ themeColor, setThemeColor }) {
     setIsMinting(true);
     setMintError(null);
     try {
+      console.log('Starting minting process...', {
+        isConnected,
+        address,
+        mintPrice: mintPrice ? mintPrice.toString() : null,
+        selectedPrice: selectedPrice ? selectedPrice.toString() : null
+      });
+
+      if (!mintPrice) {
+        throw new Error('Mint price not available');
+      }
+
       // Generate all assets first
+      console.log('Generating assets...');
       const imageBlob = await previewRef.current.takeScreenshot();
+      console.log('Screenshot taken, size:', imageBlob.size);
+      
       const animatedGlbData = await previewRef.current.exportScene('animated');
+      console.log('Animated GLB generated, size:', animatedGlbData.byteLength);
+      
       const tposeGlbData = await previewRef.current.exportScene('t-pose');
+      console.log('T-pose GLB generated, size:', tposeGlbData.byteLength);
 
       if (!imageBlob || !animatedGlbData || !tposeGlbData) {
         throw new Error('Failed to generate model files');
@@ -695,35 +713,80 @@ function Playground({ themeColor, setThemeColor }) {
       // Convert GLB data to Blobs
       const animatedGlb = new Blob([animatedGlbData], { type: 'model/gltf-binary' });
       const tposeGlb = new Blob([tposeGlbData], { type: 'model/gltf-binary' });
+      console.log('GLB blobs created', {
+        animatedSize: animatedGlb.size,
+        tposeSize: tposeGlb.size
+      });
 
       // Upload asset files first with a temporary ID
       const tempId = `pre-mint-${Date.now()}`;
-      console.log('Uploading asset files with temporary ID:', tempId);
-      await uploadToSpace(imageBlob, animatedGlb, tposeGlb, null, tempId);
-      console.log('Asset files uploaded with temporary ID');
-
-      if (!mintPrice) {
-        throw new Error('Mint price not available');
-      }
+      console.log('Starting file upload with temporary ID:', tempId);
+      const uploadResult = await uploadToSpace(imageBlob, animatedGlb, tposeGlb, null, tempId);
+      console.log('Upload completed:', uploadResult);
 
       // Mint the NFT
-      console.log('Minting NFT with price:', mintPrice);
-      const hash = await mintNFT({
-        value: mintPrice,
-        account: address
+      console.log('Starting NFT mint with parameters:', {
+        mintPrice: mintPrice.toString(),
+        account: address,
+        chainId: sepolia.id
       });
-
-      if (!hash) {
-        throw new Error('No transaction hash returned from mint');
+      
+      let mintResult;
+      try {
+        mintResult = await mintNFT({
+          value: mintPrice,
+          account: address,
+          chainId: sepolia.id
+        });
+      } catch (mintError) {
+        console.error('Mint transaction failed:', mintError);
+        // If it's a user rejection, we can show a nicer message
+        if (mintError.message.includes('rejected')) {
+          throw new Error('Transaction was cancelled');
+        }
+        throw mintError;
       }
 
-      console.log('Mint transaction hash:', hash);
+      if (!mintResult || !mintResult.hash) {
+        console.error('No transaction hash returned from mint');
+        throw new Error('Minting failed - no transaction hash returned');
+      }
+
+      console.log('Mint transaction successful:', {
+        hash: mintResult.hash,
+        tokenId: mintResult.tokenId,
+        tempId,
+        address
+      });
       
-      // Navigate to details page with temporary ID
-      navigate(`/details?id=${tempId}&playground=true&needsMint=false`);
+      // Navigate to details page with the actual token ID
+      console.log('Navigating to details page with params:', {
+        tokenId: mintResult.tokenId,
+        needsMint: false
+      });
+      navigate(`/details?id=${mintResult.tokenId}&playground=true&needsMint=false`);
     } catch (error) {
-      console.error('Error in minting process:', error);
-      setMintError(error.message || 'Failed to mint NFT');
+      console.error('Error in minting process:', {
+        error,
+        message: error.message,
+        code: error.code,
+        data: error.data,
+        stack: error.stack
+      });
+
+      // Set a user-friendly error message
+      let errorMessage = 'Failed to mint NFT: ';
+      if (error.message.includes('rejected') || error.message.includes('cancelled')) {
+        errorMessage += 'Transaction was cancelled';
+      } else if (error.message.includes('network')) {
+        errorMessage += 'Network error occurred. Please check your connection and try again.';
+      } else if (error.message.includes('price')) {
+        errorMessage += 'Invalid mint price. Please try again.';
+      } else {
+        errorMessage += error.message || 'Unknown error occurred';
+      }
+      
+      setMintError(errorMessage);
     } finally {
       setIsMinting(false);
     }
