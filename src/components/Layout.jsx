@@ -19,8 +19,7 @@ export const NAVIGATION_ITEMS = [
       { path: '/og', label: 'OG mfers' },
       { path: '/customs', label: 'Customs' },
       { path: '/based', label: 'Based' },
-      { path: '/playground-gallery', label: 'Playground Gallery' },
-      { path: '/my', label: 'My mfers' }
+      { path: '/playground-gallery', label: 'Playground Gallery' }
     ]
   }
 ];
