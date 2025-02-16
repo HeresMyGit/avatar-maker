@@ -124,6 +124,29 @@ const CONTRACT_ABI = [
   }
 ];
 
+const ERC20_ABI = [
+  {
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'spender', type: 'address' }
+    ],
+    name: 'allowance',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function'
+  },
+  {
+    inputs: [
+      { name: 'spender', type: 'address' },
+      { name: 'amount', type: 'uint256' }
+    ],
+    name: 'approve',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function'
+  }
+];
+
 export const getMintPrice = async () => {
   try {
     if (!CONTRACT_ADDRESS) {
@@ -285,7 +308,7 @@ export const mintWithToken = async (tokenAddress, amount, options = {}) => {
 
     console.log('Minting with token:', { tokenAddress, amount });
 
-    const { hash } = await writeContract(config, {
+    const hash = await writeContract(config, {
       abi: CONTRACT_ABI,
       address: CONTRACT_ADDRESS,
       functionName: 'mintWithToken',
@@ -294,7 +317,41 @@ export const mintWithToken = async (tokenAddress, amount, options = {}) => {
     });
 
     console.log('Mint with token transaction hash:', hash);
-    return hash;
+
+    if (!hash) {
+      throw new Error('Contract write failed to return transaction hash');
+    }
+
+    // Wait for the transaction to be mined
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+    console.log('Transaction receipt:', receipt);
+
+    // Find the Transfer event in the logs
+    const transferEvent = receipt.logs.find(log => {
+      // The Transfer event has 3 indexed parameters (from, to, tokenId)
+      return log.topics.length === 4 && 
+             log.address.toLowerCase() === CONTRACT_ADDRESS.toLowerCase();
+    });
+
+    if (!transferEvent) {
+      throw new Error('Could not find Transfer event in transaction logs');
+    }
+
+    // The tokenId is the third topic (index 3)
+    const tokenId = BigInt(transferEvent.topics[3]).toString();
+
+    console.log('Mint with token successful:', {
+      transactionHash: hash,
+      tokenId,
+      contractAddress: CONTRACT_ADDRESS,
+      chainId: sepolia.id
+    });
+
+    return {
+      hash,
+      tokenId
+    };
   } catch (error) {
     console.error('Error in mintWithToken:', error);
     throw error;
@@ -338,4 +395,27 @@ export const getOwnedTokens = async (address) => {
   );
 
   return tokens;
+};
+
+export const checkTokenAllowance = async (tokenAddress, ownerAddress) => {
+  return publicClient.readContract({
+    address: tokenAddress,
+    abi: ERC20_ABI,
+    functionName: 'allowance',
+    args: [ownerAddress, CONTRACT_ADDRESS]
+  });
+};
+
+export const approveToken = async (tokenAddress, amount) => {
+  const hash = await writeContract(config, {
+    address: tokenAddress,
+    abi: ERC20_ABI,
+    functionName: 'approve',
+    args: [CONTRACT_ADDRESS, amount],
+    chainId: sepolia.id
+  });
+
+  // Wait for the transaction to be mined
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  return receipt;
 }; 

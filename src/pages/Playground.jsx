@@ -10,7 +10,8 @@ import TraitSelector from '../components/TraitSelector';
 import CharacterPlayground from '../components/CharacterPlayground';
 import { generateMetadata } from '../utils/minting';
 import { uploadToSpace } from '../utils/storage';
-import { getMintPrice, mintNFT } from '../utils/contract';
+import { getMintPrice, getAcceptedTokens, getTokenPrice, mintNFT, mintWithToken, checkTokenAllowance, approveToken } from '../utils/contract';
+import { getTokenInfo } from '../config/tokens';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { useAccount } from 'wagmi';
 import { useWeb3Modal } from '@web3modal/wagmi/react';
@@ -553,6 +554,9 @@ function Playground({ themeColor, setThemeColor }) {
   const [isTakingScreenshot, setIsTakingScreenshot] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
   const [mintPrice, setMintPrice] = useState(null);
+  const [tokenPrices, setTokenPrices] = useState({});
+  const [acceptedTokens, setAcceptedTokens] = useState([]);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('eth');
   const previewRef = useRef();
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [showPriceModal, setShowPriceModal] = useState(false);
@@ -562,19 +566,29 @@ function Playground({ themeColor, setThemeColor }) {
   const { open } = useWeb3Modal();
 
   useEffect(() => {
-    const fetchMintPrice = async () => {
+    const fetchPrices = async () => {
       try {
-        setMintError(null);
+        // Fetch ETH price
         const price = await getMintPrice();
         setMintPrice(price);
+
+        // Fetch accepted tokens
+        const tokens = await getAcceptedTokens();
+        setAcceptedTokens(tokens);
+
+        // Fetch token prices
+        const prices = {};
+        for (const token of tokens) {
+          const tokenPrice = await getTokenPrice(token);
+          prices[token] = tokenPrice;
+        }
+        setTokenPrices(prices);
       } catch (error) {
-        console.error('Error fetching mint price:', error);
-        setMintError(error.message);
-        setMintPrice(null);
+        console.error('Error fetching prices:', error);
       }
     };
 
-    fetchMintPrice();
+    fetchPrices();
   }, []);
 
   // Initialize theme color
@@ -676,24 +690,15 @@ function Playground({ themeColor, setThemeColor }) {
   };
 
   const handleMint = async () => {
-    if (!isConnected || !address) {
-      setMintError('No wallet connected');
+    if (!isConnected) {
+      open();
       return;
     }
 
     setIsMinting(true);
     setMintError(null);
     try {
-      console.log('Starting minting process...', {
-        isConnected,
-        address,
-        mintPrice: mintPrice ? mintPrice.toString() : null,
-        selectedPrice: selectedPrice ? selectedPrice.toString() : null
-      });
-
-      if (!mintPrice) {
-        throw new Error('Mint price not available');
-      }
+      console.log('Starting minting process...');
 
       // Generate all assets first
       console.log('Generating assets...');
@@ -713,63 +718,64 @@ function Playground({ themeColor, setThemeColor }) {
       // Convert GLB data to Blobs
       const animatedGlb = new Blob([animatedGlbData], { type: 'model/gltf-binary' });
       const tposeGlb = new Blob([tposeGlbData], { type: 'model/gltf-binary' });
-      console.log('GLB blobs created', {
-        animatedSize: animatedGlb.size,
-        tposeSize: tposeGlb.size
-      });
 
-      // Upload asset files first with a temporary ID
-      const tempId = `pre-mint-${Date.now()}`;
-      console.log('Starting file upload with temporary ID:', tempId);
-      const uploadResult = await uploadToSpace(imageBlob, animatedGlb, tposeGlb, null, tempId);
-      console.log('Upload completed:', uploadResult);
-
-      // Mint the NFT
-      console.log('Starting NFT mint with parameters:', {
-        mintPrice: mintPrice.toString(),
-        account: address,
-        chainId: sepolia.id
-      });
-      
-      let mintResult;
-      try {
-        mintResult = await mintNFT({
-          value: mintPrice,
-          account: address,
-          chainId: sepolia.id
-        });
-      } catch (mintError) {
-        console.error('Mint transaction failed:', mintError);
-        // If it's a user rejection, we can show a nicer message
-        if (mintError.message.includes('rejected')) {
-          throw new Error('Transaction was cancelled');
-        }
-        throw mintError;
+      // Now proceed with minting
+      if (!mintPrice) {
+        throw new Error('Mint price not available');
       }
 
-      if (!mintResult || !mintResult.hash) {
-        console.error('No transaction hash returned from mint');
-        throw new Error('Minting failed - no transaction hash returned');
+      let tokenId;
+      if (selectedPaymentMethod === 'eth') {
+        const result = await mintNFT({ value: mintPrice });
+        tokenId = result.tokenId;
+      } else {
+        const tokenAddress = selectedPaymentMethod;
+        const tokenPrice = tokenPrices[tokenAddress];
+        const tokenInfo = getTokenInfo(tokenAddress);
+
+        // Check if we need to approve tokens first
+        const allowance = await checkTokenAllowance(tokenAddress, address);
+        if (allowance < tokenPrice) {
+          console.log('Approving tokens...');
+          setMintError('Please approve token usage in your wallet...');
+          try {
+            await approveToken(tokenAddress, tokenPrice);
+            console.log('Token approval successful');
+            setMintError(null);
+          } catch (approvalError) {
+            if (approvalError.message.includes('rejected') || approvalError.message.includes('cancelled')) {
+              throw new Error('Token approval was cancelled');
+            }
+            throw new Error(`Failed to approve ${tokenInfo.ticker}: ${approvalError.message}`);
+          }
+        }
+
+        // Now proceed with the mint
+        const result = await mintWithToken(tokenAddress, tokenPrice);
+        tokenId = result.tokenId;
+      }
+
+      if (!tokenId) {
+        console.error('No token ID returned from mint');
+        throw new Error('Minting failed - no token ID returned');
       }
 
       console.log('Mint transaction successful:', {
-        hash: mintResult.hash,
-        tokenId: mintResult.tokenId,
-        tempId,
+        tokenId,
         address
       });
       
-      // Rename files from temp ID to actual token ID and add metadata
-      console.log('Renaming files from temp ID to token ID...');
-      const metadata = generateMetadata(selectedTraits, mintResult.tokenId);
-      await uploadToSpace(null, null, null, metadata, mintResult.tokenId, tempId);
+      // Upload files and metadata
+      console.log('Uploading files and metadata...');
+      const nftMetadata = generateMetadata(selectedTraits, tokenId);
+      await uploadToSpace(imageBlob, animatedGlb, tposeGlb, nftMetadata, tokenId);
       
       // Navigate to details page with the actual token ID
       console.log('Navigating to details page with params:', {
-        tokenId: mintResult.tokenId,
+        tokenId,
         needsMint: false
       });
-      navigate(`/details?id=${mintResult.tokenId}&playground=true&needsMint=false`);
+      navigate(`/details?id=${tokenId}&playground=true&needsMint=false`);
     } catch (error) {
       console.error('Error in minting process:', {
         error,
@@ -787,6 +793,8 @@ function Playground({ themeColor, setThemeColor }) {
         errorMessage += 'Network error occurred. Please check your connection and try again.';
       } else if (error.message.includes('price')) {
         errorMessage += 'Invalid mint price. Please try again.';
+      } else if (error.message.includes('Failed to generate')) {
+        errorMessage += error.message;
       } else {
         errorMessage += error.message || 'Unknown error occurred';
       }
@@ -871,7 +879,7 @@ function Playground({ themeColor, setThemeColor }) {
               disabled={!hasSelectedTraits || isMinting}
               themeColor={themeColor}
             >
-              <span>⚡</span>
+              <span>⚡️</span>
               <span>
                 {isMinting ? 'Minting...' : 'Mint'}
               </span>
@@ -902,23 +910,33 @@ function Playground({ themeColor, setThemeColor }) {
             <ModalContent onClick={e => e.stopPropagation()} themeColor={themeColor}>
               <ModalTitle themeColor={themeColor}>Select Mint Price</ModalTitle>
               <PriceOption
-                onClick={() => setSelectedPrice(mintPrice)}
-                active={selectedPrice === mintPrice}
+                onClick={() => {
+                  setSelectedPaymentMethod('eth');
+                  setSelectedPrice(mintPrice);
+                }}
+                active={selectedPaymentMethod === 'eth'}
                 themeColor={themeColor}
               >
                 <span>ETH Price</span>
                 <span>{mintPrice ? `${formatEther(mintPrice)} ETH` : 'Loading...'}</span>
               </PriceOption>
-              <PriceOption
-                onClick={() => setSelectedPrice('coming_soon')}
-                active={selectedPrice === 'coming_soon'}
-                themeColor={themeColor}
-                disabled
-                style={{ opacity: 0.5 }}
-              >
-                <span>Other Options</span>
-                <span>Coming Soon</span>
-              </PriceOption>
+              {acceptedTokens.map(tokenAddress => {
+                const tokenInfo = getTokenInfo(tokenAddress);
+                return (
+                  <PriceOption
+                    key={tokenAddress}
+                    onClick={() => {
+                      setSelectedPaymentMethod(tokenAddress);
+                      setSelectedPrice(tokenPrices[tokenAddress]);
+                    }}
+                    active={selectedPaymentMethod === tokenAddress}
+                    themeColor={themeColor}
+                  >
+                    <span>{tokenInfo.name}</span>
+                    <span>{tokenPrices[tokenAddress] ? `${formatEther(tokenPrices[tokenAddress])} ${tokenInfo.ticker}` : 'Loading...'}</span>
+                  </PriceOption>
+                );
+              })}
               <ModalButtons>
                 <ModalButton
                   variant="secondary"
@@ -930,7 +948,7 @@ function Playground({ themeColor, setThemeColor }) {
                 <ModalButton
                   variant="primary"
                   onClick={handleMintConfirm}
-                  disabled={!selectedPrice || selectedPrice === 'coming_soon'}
+                  disabled={!selectedPrice}
                   themeColor={themeColor}
                 >
                   Confirm
