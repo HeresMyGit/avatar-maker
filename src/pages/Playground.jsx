@@ -565,6 +565,8 @@ function Playground({ themeColor, setThemeColor }) {
   const { address, isConnected } = useAccount();
   const { open } = useWeb3Modal();
   const [showSnapshotDropdown, setShowSnapshotDropdown] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [imageDataUrl, setImageDataUrl] = useState(null);
 
   useEffect(() => {
     const fetchPrices = async () => {
@@ -630,19 +632,94 @@ function Playground({ themeColor, setThemeColor }) {
           : await previewRef.current.takeViewfinderScreenshot();
         
         if (blob) {
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `mfer-avatar${type === 'portrait' ? '' : '-view'}.png`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          window.URL.revokeObjectURL(url);
+          // Define the file name
+          const fileName = `mfer-avatar${type === 'portrait' ? '' : '-view'}.png`;
+          
+          // Check if running on mobile
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+          const isAndroid = /Android/.test(navigator.userAgent);
+          const isMobile = isIOS || isAndroid;
+          
+          if (isMobile) {
+            // Convert blob to data URL for mobile devices
+            const reader = new FileReader();
+            reader.onloadend = function() {
+              // Set the data URL in state and show the modal
+              setImageDataUrl(reader.result);
+              setShowImageModal(true);
+            };
+            reader.readAsDataURL(blob);
+          } else {
+            // For non-mobile devices, use the traditional download method
+            downloadImage(blob, fileName);
+          }
         }
       } catch (error) {
         console.error('Screenshot failed:', error);
       }
       setIsTakingScreenshot(false);
+    }
+  };
+  
+  // Helper function to download the image
+  const downloadImage = (blob, fileName) => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const shareImage = async (dataUrl) => {
+    try {
+      // Convert data URL back to blob
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      
+      // Create a File object from the blob
+      const file = new File([blob], 'mfer-avatar.png', { type: 'image/png' });
+      
+      // Check if we can use the File sharing on this device
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'My Mfer Avatar',
+            text: 'Check out my mfer avatar!'
+          });
+          console.log('Image shared successfully');
+          // Close the modal after successful share on mobile
+          setShowImageModal(false);
+        } catch (error) {
+          if (error.name !== 'AbortError') {
+            console.error('Error sharing the image:', error);
+          }
+        }
+      } else {
+        console.log('Web Share API not supported for files');
+        // Fallback for browsers that support basic sharing
+        if (navigator.share) {
+          try {
+            await navigator.share({
+              title: 'My Mfer Avatar',
+              text: 'Check out my mfer avatar!',
+              url: dataUrl
+            });
+            console.log('Image URL shared successfully');
+            // Close the modal after successful share on mobile
+            setShowImageModal(false);
+          } catch (error) {
+            if (error.name !== 'AbortError') {
+              console.error('Error sharing the image URL:', error);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error in share process:', error);
     }
   };
 
@@ -991,6 +1068,92 @@ function Playground({ themeColor, setThemeColor }) {
           </ErrorMessage>
         )}
       </PlaygroundContainer>
+
+      {showImageModal && (
+        <ModalOverlay onClick={() => setShowImageModal(false)}>
+          <ModalContent onClick={e => e.stopPropagation()} themeColor={themeColor} style={{ maxWidth: '90%', width: 'auto' }}>
+            <ModalTitle themeColor={themeColor}>Your Avatar</ModalTitle>
+            
+            <div style={{ 
+              backgroundColor: 'rgba(255,255,255,0.1)', 
+              padding: '12px', 
+              borderRadius: '8px', 
+              marginBottom: '16px',
+              textAlign: 'center',
+              fontSize: '1.1em'
+            }}>
+              <p style={{ margin: '0 0 8px 0' }}>
+                <strong>To save to your photo library:</strong>
+              </p>
+              {/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream ? (
+                <p style={{ margin: '0' }}>
+                  Press and hold on the image, then tap "Add to Photos"
+                </p>
+              ) : /Android/.test(navigator.userAgent) ? (
+                <p style={{ margin: '0' }}>
+                  Tap the Share button below, then select "Save to Gallery" or "Download"
+                </p>
+              ) : (
+                <p style={{ margin: '0' }}>
+                  Click the Download button below or right-click the image and select "Save Image"
+                </p>
+              )}
+            </div>
+            
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              position: 'relative',
+              marginBottom: '16px'
+            }}>
+              <img 
+                src={imageDataUrl} 
+                alt="Your Avatar" 
+                style={{ 
+                  maxWidth: '100%', 
+                  maxHeight: '60vh', 
+                  borderRadius: '12px', 
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
+                }} 
+              />
+            </div>
+            
+            <ModalButtons>
+              <ModalButton
+                variant="secondary"
+                onClick={() => {
+                  // Create a temporary link to download the image
+                  const a = document.createElement('a');
+                  a.href = imageDataUrl;
+                  a.download = 'mfer-avatar.png';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                }}
+                themeColor={themeColor}
+              >
+                Download
+              </ModalButton>
+              {(navigator.share || navigator.canShare) && (
+                <ModalButton
+                  variant="primary"
+                  onClick={() => shareImage(imageDataUrl)}
+                  themeColor={themeColor}
+                >
+                  Share
+                </ModalButton>
+              )}
+              <ModalButton
+                variant={navigator.share || navigator.canShare ? "secondary" : "primary"}
+                onClick={() => setShowImageModal(false)}
+                themeColor={themeColor}
+              >
+                Close
+              </ModalButton>
+            </ModalButtons>
+          </ModalContent>
+        </ModalOverlay>
+      )}
     </>
   );
 }
