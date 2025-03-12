@@ -564,6 +564,7 @@ function Playground({ themeColor, setThemeColor }) {
   const [mintError, setMintError] = useState(null);
   const { address, isConnected } = useAccount();
   const { open } = useWeb3Modal();
+  const [showSnapshotDropdown, setShowSnapshotDropdown] = useState(false);
 
   useEffect(() => {
     const fetchPrices = async () => {
@@ -620,16 +621,19 @@ function Playground({ themeColor, setThemeColor }) {
     setSelectedTraits({ ...newTraits });
   };
 
-  const handleScreenshot = async () => {
-    if (previewRef.current?.takeScreenshot) {
+  const handleScreenshot = async (type = 'portrait') => {
+    if (previewRef.current) {
       setIsTakingScreenshot(true);
       try {
-        const blob = await previewRef.current.takeScreenshot();
+        const blob = type === 'portrait' 
+          ? await previewRef.current.takeScreenshot()
+          : await previewRef.current.takeViewfinderScreenshot();
+        
         if (blob) {
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = 'mfer-avatar.png';
+          a.download = `mfer-avatar${type === 'portrait' ? '' : '-view'}.png`;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
@@ -840,15 +844,37 @@ function Playground({ themeColor, setThemeColor }) {
               <span>↺</span>
               <span>Reset</span>
             </Button>
-            <Button 
-              variant="primary"
-              onClick={handleScreenshot} 
-              disabled={!hasSelectedTraits || isTakingScreenshot}
-              themeColor={themeColor}
-            >
-              <span>📸</span>
-              <span>Photo</span>
-            </Button>
+            <ExportDropdownContainer className="export-dropdown">
+              <Button 
+                variant="primary"
+                onClick={() => setShowSnapshotDropdown(!showSnapshotDropdown)}
+                disabled={!hasSelectedTraits || isTakingScreenshot}
+                themeColor={themeColor}
+              >
+                <span>📸</span>
+                <span>Photo</span>
+              </Button>
+              <ExportDropdown show={showSnapshotDropdown}>
+                <DropdownOption 
+                  onClick={() => {
+                    setShowSnapshotDropdown(false);
+                    handleScreenshot('portrait');
+                  }}
+                  themeColor={themeColor}
+                >
+                  Portrait
+                </DropdownOption>
+                <DropdownOption 
+                  onClick={() => {
+                    setShowSnapshotDropdown(false);
+                    handleScreenshot('viewfinder');
+                  }}
+                  themeColor={themeColor}
+                >
+                  Viewfinder
+                </DropdownOption>
+              </ExportDropdown>
+            </ExportDropdownContainer>
             <ExportDropdownContainer className="export-dropdown">
               <Button 
                 onClick={() => setShowExportDropdown(!showExportDropdown)}

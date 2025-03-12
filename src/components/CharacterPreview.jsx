@@ -1059,6 +1059,96 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
       return blob;
     },
 
+    takeViewfinderScreenshot: async () => {
+      if (!modelLoaded || !gl) return null;
+
+      try {
+        // Get current renderer and camera
+        const renderer = gl;
+        const currentCamera = cameraRef.current;
+        const currentAspect = gl.domElement.width / gl.domElement.height;
+        
+        // Temporarily disable orbit controls to prevent movement during screenshot
+        if (controlsRef.current) {
+          controlsRef.current.enabled = false;
+        }
+        
+        // Force a render with the current camera to ensure screenshot captures current view
+        renderer.render(scene, currentCamera);
+        
+        // Create a new high-resolution canvas for the final composition
+        const canvas = document.createElement('canvas');
+        canvas.width = 1024;
+        canvas.height = Math.floor(1024 / currentAspect);
+        const ctx = canvas.getContext('2d');
+        
+        // Parse theme color to ensure correct format
+        const bgColor = themecolor.startsWith('#') ? themecolor : `#${themecolor}`;
+        
+        // Fill with solid dark background first (similar to the app background)
+        ctx.fillStyle = '#13151a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw a radial gradient background matching the UI more closely
+        const gradient = ctx.createRadialGradient(
+          canvas.width/2, canvas.height/2, 0,
+          canvas.width/2, canvas.height/2, canvas.width * 0.8
+        );
+        
+        // Use color values that match the CSS in PreviewSection
+        gradient.addColorStop(0, bgColor + '99'); // ~60% opacity at center (matching CSS)
+        gradient.addColorStop(0.7, 'transparent'); // Fade to transparent at 70%
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Get the WebGL canvas content scaled to our high-res canvas
+        const tempImg = new Image();
+        await new Promise((resolve) => {
+          tempImg.onload = resolve;
+          tempImg.src = renderer.domElement.toDataURL('image/png');
+        });
+        
+        // Calculate scaling to maintain aspect ratio and center in canvas
+        const scale = Math.min(
+          canvas.width / tempImg.width,
+          canvas.height / tempImg.height
+        );
+        
+        const scaledWidth = tempImg.width * scale;
+        const scaledHeight = tempImg.height * scale;
+        const offsetX = (canvas.width - scaledWidth) / 2;
+        const offsetY = (canvas.height - scaledHeight) / 2;
+        
+        // Draw the WebGL canvas content on top
+        ctx.drawImage(tempImg, offsetX, offsetY, scaledWidth, scaledHeight);
+        
+        // Optional: Add subtle paper texture effect (if needed)
+        // This would require loading and drawing a texture image
+        
+        // Get the screenshot as a blob
+        const blob = await new Promise((resolve) => {
+          canvas.toBlob((blob) => resolve(blob), 'image/png');
+        });
+        
+        // Re-enable orbit controls
+        if (controlsRef.current) {
+          controlsRef.current.enabled = true;
+        }
+        
+        return blob;
+      } catch (error) {
+        console.error('Error capturing viewfinder screenshot:', error);
+        
+        // Re-enable orbit controls in case of error
+        if (controlsRef.current) {
+          controlsRef.current.enabled = true;
+        }
+        
+        return null;
+      }
+    },
+
     exportScene: async (exportType = 'animated') => {
       console.log(`Starting export process for type: ${exportType}`);
       

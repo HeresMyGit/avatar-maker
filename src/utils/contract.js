@@ -51,9 +51,31 @@ const CONTRACT_ABI = [
     name: 'Transfer',
     type: 'event'
   },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'user', type: 'address' },
+      { indexed: false, name: 'tokenId', type: 'uint256' },
+      { indexed: false, name: 'timestamp', type: 'uint256' }
+    ],
+    name: 'FreeMintUsed',
+    type: 'event'
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'user', type: 'address' },
+      { indexed: true, name: 'tokenId', type: 'uint256' },
+      { indexed: false, name: 'timestamp', type: 'uint256' }
+    ],
+    name: 'MintCompleted',
+    type: 'event'
+  },
   // Mint functions
   {
-    inputs: [],
+    inputs: [
+      { name: 'timestamp', type: 'uint256' }
+    ],
     name: 'mint',
     outputs: [{ name: '', type: 'uint256' }],
     stateMutability: 'payable',
@@ -62,7 +84,8 @@ const CONTRACT_ABI = [
   {
     inputs: [
       { name: 'token', type: 'address' },
-      { name: 'amount', type: 'uint256' }
+      { name: 'amount', type: 'uint256' },
+      { name: 'timestamp', type: 'uint256' }
     ],
     name: 'mintWithToken',
     outputs: [{ name: '', type: 'uint256' }],
@@ -206,7 +229,8 @@ export const mintNFT = async (options = {}) => {
       chainId: sepolia.id,
       options: {
         ...options,
-        value: options.value ? options.value.toString() : '0'
+        value: options.value ? options.value.toString() : '0',
+        timestamp: options.timestamp
       }
     });
 
@@ -214,10 +238,14 @@ export const mintNFT = async (options = {}) => {
       throw new Error('Mint price is required');
     }
 
+    if (!options.timestamp) {
+      throw new Error('Timestamp is required');
+    }
+
     console.log('Preparing contract write...', {
       abi: 'mint function',
       functionName: 'mint',
-      args: [],
+      args: [BigInt(options.timestamp)],
       value: options.value.toString()
     });
 
@@ -225,7 +253,7 @@ export const mintNFT = async (options = {}) => {
       abi: CONTRACT_ABI,
       address: CONTRACT_ADDRESS,
       functionName: 'mint',
-      args: [],
+      args: [BigInt(options.timestamp)],
       value: BigInt(options.value),
       chainId: sepolia.id
     });
@@ -270,6 +298,9 @@ export const mintNFT = async (options = {}) => {
       chainId: sepolia.id
     });
 
+    // Wait 15 seconds after successful mint
+    await new Promise(resolve => setTimeout(resolve, 15000));
+
     return {
       hash,
       tokenId
@@ -306,13 +337,17 @@ export const mintWithToken = async (tokenAddress, amount, options = {}) => {
       throw new Error('Contract address is not configured');
     }
 
-    console.log('Minting with token:', { tokenAddress, amount });
+    if (!options.timestamp) {
+      throw new Error('Timestamp is required');
+    }
+
+    console.log('Minting with token:', { tokenAddress, amount, timestamp: options.timestamp });
 
     const hash = await writeContract(config, {
       abi: CONTRACT_ABI,
       address: CONTRACT_ADDRESS,
       functionName: 'mintWithToken',
-      args: [tokenAddress, amount],
+      args: [tokenAddress, amount, BigInt(options.timestamp)],
       chainId: sepolia.id
     });
 
@@ -347,6 +382,9 @@ export const mintWithToken = async (tokenAddress, amount, options = {}) => {
       contractAddress: CONTRACT_ADDRESS,
       chainId: sepolia.id
     });
+
+    // Wait 15 seconds after successful mint
+    await new Promise(resolve => setTimeout(resolve, 15000));
 
     return {
       hash,
@@ -418,4 +456,31 @@ export const approveToken = async (tokenAddress, amount) => {
   // Wait for the transaction to be mined
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
   return receipt;
+};
+
+// Function to submit traits to the server before minting
+export const submitTraits = async (traits, timestamp) => {
+  try {
+    console.log('Submitting traits to server:', { traits, timestamp });
+    
+    // TODO: Replace with actual API endpoint
+    // For now, just simulate a server call with a delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // In the real implementation, this would be:
+    // const response = await fetch('/api/submit-traits', {
+    //   method: 'POST',
+    //   headers: {
+    //     'Content-Type': 'application/json',
+    //   },
+    //   body: JSON.stringify({ traits, timestamp })
+    // });
+    // if (!response.ok) throw new Error('Failed to submit traits');
+    // return await response.json();
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error submitting traits:', error);
+    throw new Error('Failed to submit traits to server');
+  }
 }; 

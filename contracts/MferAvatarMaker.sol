@@ -30,7 +30,8 @@ contract MferAvatarPlayground is ERC721, ERC721URIStorage, Ownable, Pausable {
     event PaymentTokenRemoved(address indexed token);
     event EthPriceUpdated(uint256 newPrice);
     event FreeMintAllowanceUpdated(address indexed recipient, uint256 amount);
-    event FreeMintUsed(address indexed user, uint256 tokenId);
+    event FreeMintUsed(address indexed user, uint256 tokenId, uint256 timestamp);
+    event MintCompleted(address indexed user, uint256 indexed tokenId, uint256 timestamp);
     event BaseURIUpdated(string newBaseURI);
     event TokenURIExtensionUpdated(string newExtension);
 
@@ -57,10 +58,10 @@ contract MferAvatarPlayground is ERC721, ERC721URIStorage, Ownable, Pausable {
     }
 
     // Mint with ETH
-    function mint() public payable whenNotPaused returns (uint256) {
+    function mint(uint256 timestamp) public payable whenNotPaused returns (uint256) {
         // Check if sender has free mints
         if (freeMints[msg.sender] > 0) {
-            return _mintFree(msg.sender);
+            return _mintFree(msg.sender, timestamp);
         }
 
         require(msg.value >= ethPrice, "Insufficient ETH sent");
@@ -75,14 +76,15 @@ contract MferAvatarPlayground is ERC721, ERC721URIStorage, Ownable, Pausable {
             require(success, "ETH refund failed");
         }
 
+        emit MintCompleted(msg.sender, newTokenId, timestamp);
         return newTokenId;
     }
 
     // Mint with ERC20 token
-    function mintWithToken(address token, uint256 amount) public whenNotPaused returns (uint256) {
+    function mintWithToken(address token, uint256 amount, uint256 timestamp) public whenNotPaused returns (uint256) {
         // Check if sender has free mints
         if (freeMints[msg.sender] > 0) {
-            return _mintFree(msg.sender);
+            return _mintFree(msg.sender, timestamp);
         }
 
         require(paymentAmounts[token] > 0, "Token not accepted");
@@ -100,11 +102,12 @@ contract MferAvatarPlayground is ERC721, ERC721URIStorage, Ownable, Pausable {
             IERC20(token).transfer(msg.sender, amount - paymentAmounts[token]);
         }
 
+        emit MintCompleted(msg.sender, newTokenId, timestamp);
         return newTokenId;
     }
 
     // Internal function for free minting
-    function _mintFree(address to) internal returns (uint256) {
+    function _mintFree(address to, uint256 timestamp) internal returns (uint256) {
         require(freeMints[to] > 0, "No free mints available");
         
         _tokenIds.increment();
@@ -112,28 +115,31 @@ contract MferAvatarPlayground is ERC721, ERC721URIStorage, Ownable, Pausable {
         _safeMint(to, newTokenId);
         
         freeMints[to]--;
-        emit FreeMintUsed(to, newTokenId);
+        emit FreeMintUsed(to, newTokenId, timestamp);
+        emit MintCompleted(to, newTokenId, timestamp);
         
         return newTokenId;
     }
 
     // Admin: Mint for free (owner only)
-    function adminMint() public onlyOwner returns (uint256) {
+    function adminMint(uint256 timestamp) public onlyOwner returns (uint256) {
         _tokenIds.increment();
         uint256 newTokenId = _tokenIds.current();
         _safeMint(msg.sender, newTokenId);
         
-        emit FreeMintUsed(msg.sender, newTokenId);
+        emit FreeMintUsed(msg.sender, newTokenId, timestamp);
+        emit MintCompleted(msg.sender, newTokenId, timestamp);
         return newTokenId;
     }
 
     // Admin: Mint to a specific address for free
-    function adminMintTo(address to) public onlyOwner returns (uint256) {
+    function adminMintTo(address to, uint256 timestamp) public onlyOwner returns (uint256) {
         _tokenIds.increment();
         uint256 newTokenId = _tokenIds.current();
         _safeMint(to, newTokenId);
         
-        emit FreeMintUsed(to, newTokenId);
+        emit FreeMintUsed(to, newTokenId, timestamp);
+        emit MintCompleted(to, newTokenId, timestamp);
         return newTokenId;
     }
 
