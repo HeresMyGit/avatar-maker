@@ -601,11 +601,16 @@ const MainModel = ({ selectedTraits, onLoad, onError, sceneRef }) => {
   const groupRef = useRef();
   const modelRef = useRef(null);
   const mixerRef = useRef(null);
+  const animationActionRef = useRef(null); // Store the current animation action
+  const animationStateRef = useRef({
+    time: 0,
+    playing: false
+  }); // Track animation state
   const [isLoading, setIsLoading] = useState(true);
   const isMobile = window.innerWidth <= 768;
   const { gl } = useThree();
 
-  // Animation setup function
+  // Animation setup function - modified to preserve animation state
   const setupAnimation = (scene, animations) => {
     try {
       if (!animations || animations.length === 0) {
@@ -614,29 +619,55 @@ const MainModel = ({ selectedTraits, onLoad, onError, sceneRef }) => {
       }
 
       console.log('Setting up animation mixer');
-      const mixer = new THREE.AnimationMixer(scene);
+      
+      // If mixer already exists, we'll preserve its state
+      const preserveState = mixerRef.current !== null;
+      const previousTime = preserveState ? animationStateRef.current.time : 0;
+      const wasPlaying = preserveState ? animationStateRef.current.playing : false;
+      
+      // Create a new mixer only if needed
+      if (!mixerRef.current) {
+        mixerRef.current = new THREE.AnimationMixer(scene);
+      } else {
+        // Update the mixer's root target while preserving its state
+        mixerRef.current.stopAllAction();
+        mixerRef.current._root = scene;
+      }
       
       // Find the idle animation
       const idleClip = animations.find(clip => clip.name.toLowerCase().includes('idle')) || animations[0];
       console.log('Using animation clip:', idleClip.name);
       
-      const action = mixer.clipAction(idleClip);
+      // Create and configure the action
+      const action = mixerRef.current.clipAction(idleClip);
+      animationActionRef.current = action;
       
       // Configure the animation
       action.setLoop(THREE.LoopRepeat);
       action.clampWhenFinished = false;
       action.timeScale = 1.0;
       
-      // Play the animation
-      action.reset().play();
+      if (preserveState) {
+        // Restore animation state
+        console.log('Preserving animation state:', { previousTime, wasPlaying });
+        if (wasPlaying) {
+          action.time = previousTime;
+          action.play();
+        }
+      } else {
+        // Start animation normally
+        action.reset().play();
+        animationStateRef.current.playing = true;
+      }
       
-      return mixer;
+      return mixerRef.current;
     } catch (error) {
       console.error('Error setting up animation:', error);
       return null;
     }
   };
 
+  // Initial model load - only run once
   useEffect(() => {
     let isMounted = true;
     let retryCount = 0;
@@ -647,13 +678,19 @@ const MainModel = ({ selectedTraits, onLoad, onError, sceneRef }) => {
         console.log('Starting model load process');
         setIsLoading(true);
 
-        // Clear old model if it exists
+        // Save animation state before cleaning up
+        if (mixerRef.current && animationActionRef.current) {
+          animationStateRef.current = {
+            time: animationActionRef.current.time,
+            playing: !animationActionRef.current.paused
+          };
+        }
+
+        // Clear old model if it exists (but keep mixer reference)
         if (modelRef.current) {
           console.log('Cleaning up old model');
           if (mixerRef.current) {
             mixerRef.current.stopAllAction();
-            mixerRef.current.uncacheRoot(mixerRef.current.getRoot());
-            mixerRef.current = null;
           }
           modelRef.current = null;
         }
@@ -686,10 +723,13 @@ const MainModel = ({ selectedTraits, onLoad, onError, sceneRef }) => {
 
         sceneRef.current = clonedScene;
         
-        // Setup animation (not mobile-dependent anymore)
+        // Setup animation (preserving state if possible)
         if (clonedAnimations.length > 0) {
           console.log('Setting up animations');
           mixerRef.current = setupAnimation(clonedScene, clonedAnimations);
+          
+          // Store mixer reference in the model
+          modelRef.current.mixer = mixerRef.current;
         }
 
         console.log('Updating mesh visibility');
@@ -720,11 +760,16 @@ const MainModel = ({ selectedTraits, onLoad, onError, sceneRef }) => {
     return () => {
       console.log('Component cleanup');
       isMounted = false;
-      if (mixerRef.current) {
-        mixerRef.current.stopAllAction();
-        mixerRef.current.uncacheRoot(mixerRef.current.getRoot());
-        mixerRef.current = null;
+      
+      // Save animation state before cleanup
+      if (mixerRef.current && animationActionRef.current) {
+        animationStateRef.current = {
+          time: animationActionRef.current.time,
+          playing: !animationActionRef.current.paused
+        };
       }
+      
+      // Clean up other resources
       if (modelRef.current) {
         modelRef.current.scene.traverse((obj) => {
           if (obj.geometry) obj.geometry.dispose();
@@ -739,12 +784,27 @@ const MainModel = ({ selectedTraits, onLoad, onError, sceneRef }) => {
         modelRef.current = null;
       }
     };
-  }, [onLoad, onError]);
+  }, [onLoad, onError]); // Only run on mount, not when selectedTraits changes
 
-  // Update animation mixer in render loop (removed mobile check)
+  // Separate effect to handle trait changes
+  useEffect(() => {
+    if (modelRef.current && sceneRef.current) {
+      // We only need to update mesh visibility when traits change
+      // No animation changes needed - just visibility changes
+      console.log('Traits changed, updating mesh visibility only');
+      updateMeshVisibility();
+    }
+  }, [selectedTraits]);
+
+  // Update animation mixer in render loop
   useFrame((state, delta) => {
     if (mixerRef.current) {
       mixerRef.current.update(delta);
+      
+      // Update our saved time after each frame
+      if (animationActionRef.current && animationStateRef.current.playing) {
+        animationStateRef.current.time = animationActionRef.current.time;
+      }
     }
   });
 
@@ -956,6 +1016,20 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
     takeScreenshot: async () => {
       if (!modelLoaded || !sceneRootRef.current) return null;
 
+      // Preserve animation state
+      let currentAnimationTime = 0;
+      let wasPlaying = false;
+      
+      if (mainModelRef.current && mainModelRef.current.mixer) {
+        // Store animation state from main model
+        const mixer = mainModelRef.current.mixer;
+        const actions = mixer._actions;
+        if (actions && actions.length > 0) {
+          currentAnimationTime = actions[0].time;
+          wasPlaying = !actions[0].paused;
+        }
+      }
+
       // Create a new scene for the screenshot
       const screenshotScene = new THREE.Scene();
       
@@ -1152,6 +1226,21 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
     exportScene: async (exportType = 'animated') => {
       console.log(`Starting export process for type: ${exportType}`);
       
+      // Preserve animation state if possible
+      let originalMixer = null;
+      let currentAnimationTime = 0;
+      let wasPlaying = false;
+      
+      if (mainModelRef.current && mainModelRef.current.mixer) {
+        // Store the animation state before export
+        originalMixer = mainModelRef.current.mixer;
+        const actions = originalMixer._actions;
+        if (actions && actions.length > 0) {
+          currentAnimationTime = actions[0].time;
+          wasPlaying = !actions[0].paused;
+        }
+      }
+
       // Add loading state check with timeout
       const waitForLoad = async (maxWaitTime = 10000) => {
         const startTime = Date.now();
@@ -1338,7 +1427,7 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
         };
         console.log('Export options:', options);
 
-        return new Promise((resolve, reject) => {
+        const gltfData = await new Promise((resolve, reject) => {
           console.log('Starting export...');
           let exportRetryCount = 0;
           const MAX_EXPORT_RETRIES = 3;
@@ -1369,6 +1458,9 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
 
           attemptExport();
         });
+
+        exportLockRef.current = false;
+        return gltfData;
       } catch (error) {
         console.error('Error in exportScene:', error);
         exportLockRef.current = false;
