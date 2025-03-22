@@ -14,50 +14,17 @@ export default defineConfig({
   base: '/avatar-maker/',
   resolve: {
     alias: {
-      '@': '/src'
+      '@': '/src',
+      'use-sync-external-store/shim/with-selector': 'use-sync-external-store/shim/with-selector.js'
     }
   },
   optimizeDeps: {
     include: [
       '@wagmi/core',
       '@web3modal/wagmi',
-      'viem'
+      'viem',
+      'use-sync-external-store/shim/with-selector.js'
     ]
-  },
-  build: {
-    commonjsOptions: {
-      include: [/node_modules/]
-    },
-    rollupOptions: {
-      input: {
-        main: 'index.html',
-        'playground-gallery': 'playground-gallery.html',
-        'based': 'based.html',
-        'customs': 'customs.html',
-        'details': 'details.html',
-        'ogmfers': 'ogmfers.html'
-      }
-    }
-  },
-  server: {
-    proxy: {
-      '/cybermfers': {
-        target: 'https://cybermfers.sfo3.digitaloceanspaces.com',
-        changeOrigin: true,
-        secure: true,
-        rewrite: (path) => path
-      }
-    },
-    host: true,
-    port: 5173,
-    allowedHosts: [
-      '*.ngrok-free.app'
-    ]
-  },
-  resolve: {
-    alias: {
-      'use-sync-external-store/shim/with-selector': 'use-sync-external-store/shim/with-selector.js'
-    }
   },
   build: {
     outDir: 'dist',
@@ -73,14 +40,13 @@ export default defineConfig({
           web3: ['wagmi', 'viem', '@web3modal/wagmi']
         }
       }
-    },
-    optimizeDeps: {
-      include: [
-        '@web3modal/wagmi', 
-        'wagmi', 
-        'viem',
-        'use-sync-external-store/shim/with-selector.js'
-      ]
     }
+  },
+  server: {
+    host: true,
+    port: 5173,
+    allowedHosts: [
+      '*.ngrok-free.app'
+    ]
   }
 }) 
