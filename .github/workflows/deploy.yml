@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: ['node-fix']
+    branches: ['nomint']
   workflow_dispatch:
 
 permissions:
@@ -37,13 +37,6 @@ jobs:
       
       - name: Build
         run: npm run build
-        env:
-          VITE_WALLETCONNECT_PROJECT_ID: ${{ secrets.VITE_WALLETCONNECT_PROJECT_ID }}
-          VITE_CONTRACT_ADDRESS: ${{ secrets.VITE_CONTRACT_ADDRESS }}
-          VITE_DO_SPACES_BUCKET: ${{ secrets.VITE_DO_SPACES_BUCKET }}
-          VITE_DO_SPACES_KEY: ${{ secrets.VITE_DO_SPACES_KEY }}
-          VITE_DO_SPACES_SECRET: ${{ secrets.VITE_DO_SPACES_SECRET }}
-          VITE_INFURA_PROJECT_ID: ${{ secrets.VITE_INFURA_PROJECT_ID }}
       
       - name: Setup Pages
         uses: actions/configure-pages@v4
