@@ -7,6 +7,7 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import styled from '@emotion/styled';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import * as THREE from 'three';
+import gsap from 'gsap';
 
 // Add retry constants
 const MAX_RETRIES = 3;
@@ -19,35 +20,40 @@ const LOADING_MODEL_URL = "/avatar-maker/sartoshi-head.glb";
 // Create a model manager to handle loading and caching
 const modelManager = {
   loadedModels: new Map(),
-  currentLoadingPromise: null,
+  currentLoadingPromises: new Map(),
+  loadingProgress: new Map(),
   
   loadModel: async (url) => {
     console.log('Starting model load:', url);
+    modelManager.loadingProgress.set(url, 0);
     
-    // If there's already a loading promise, return it
-    if (modelManager.currentLoadingPromise) {
-      console.log('Using existing load promise');
-      return modelManager.currentLoadingPromise;
+    // If there's already a loading promise for this URL, return it
+    if (modelManager.currentLoadingPromises.has(url)) {
+      console.log('Using existing load promise for:', url);
+      return modelManager.currentLoadingPromises.get(url);
     }
 
     // If model is already loaded, return it
     if (modelManager.loadedModels.has(url)) {
-      console.log('Using cached model');
+      console.log('Using cached model for:', url);
+      modelManager.loadingProgress.set(url, 100);
       return modelManager.loadedModels.get(url);
     }
 
     const loader = new GLTFLoader();
     loader.setCrossOrigin('anonymous');
 
-    // Create new loading promise
-    modelManager.currentLoadingPromise = new Promise((resolve, reject) => {
+    // Create new loading promise for this URL
+    const loadingPromise = new Promise((resolve, reject) => {
       try {
-        console.log('Loading model...');
+        console.log('Loading model:', url);
         loader.load(
           url,
           (gltf) => {
             try {
-              console.log('Model loaded, processing...');
+              console.log('Model loaded, processing:', url);
+              // After download, start at 69%
+              modelManager.loadingProgress.set(url, 69);
               
               // Basic scene optimization
               gltf.scene.traverse((obj) => {
@@ -55,7 +61,7 @@ const modelManager = {
                   // Optimize geometry
                   if (obj.geometry) {
                     obj.geometry.dispose();
-                    obj.geometry = obj.geometry.clone(); // Create fresh geometry
+                    obj.geometry = obj.geometry.clone();
                     obj.geometry.attributes.position.needsUpdate = true;
                   }
                   
@@ -63,20 +69,20 @@ const modelManager = {
                   if (obj.material) {
                     const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
                     materials.forEach(mat => {
-                      // Remove unused properties
                       ['lightMap', 'aoMap', 'emissiveMap'].forEach(prop => {
                         if (mat[prop]) {
                           mat[prop].dispose();
                           mat[prop] = null;
                         }
                       });
-                      
-                      // Force material update
                       mat.needsUpdate = true;
                     });
                   }
                 }
               });
+
+              // After optimization, update to 85%
+              modelManager.loadingProgress.set(url, 85);
 
               // Create optimized clone
               const clonedScene = SkeletonUtils.clone(gltf.scene);
@@ -88,36 +94,47 @@ const modelManager = {
               };
               
               modelManager.loadedModels.set(url, model);
-              console.log('Model processed and cached');
+              // Final step complete
+              modelManager.loadingProgress.set(url, 100);
+              console.log('Model processed and cached:', url);
               resolve(model);
             } catch (error) {
               console.error('Error processing model:', error);
               reject(error);
+            } finally {
+              modelManager.currentLoadingPromises.delete(url);
             }
           },
           (progress) => {
             if (progress.lengthComputable) {
-              const percent = (progress.loaded / progress.total * 100).toFixed(1);
-              console.log(`Loading progress: ${percent}%`);
+              const percent = (progress.loaded / progress.total * 100);
+              // Scale download progress to 0-69% range
+              const scaledProgress = Math.min(69, percent * 0.69);
+              modelManager.loadingProgress.set(url, scaledProgress);
+              console.log(`Loading progress for ${url}: ${scaledProgress.toFixed(1)}%`);
             }
           },
           (error) => {
             console.error('Model loading error:', error);
+            modelManager.currentLoadingPromises.delete(url);
             reject(error);
           }
         );
       } catch (error) {
         console.error('Error in loader setup:', error);
+        modelManager.currentLoadingPromises.delete(url);
         reject(error);
       }
     });
 
+    // Store the promise before returning it
+    modelManager.currentLoadingPromises.set(url, loadingPromise);
+
     try {
-      const result = await modelManager.currentLoadingPromise;
-      modelManager.currentLoadingPromise = null;
+      const result = await loadingPromise;
       return result;
     } catch (error) {
-      modelManager.currentLoadingPromise = null;
+      modelManager.loadingProgress.set(url, 0);
       throw error;
     }
   },
@@ -152,7 +169,8 @@ const modelManager = {
           }
         });
         modelManager.loadedModels.delete(url);
-        console.log('Model disposed');
+        modelManager.loadingProgress.delete(url);
+        console.log('Model disposed:', url);
       } catch (error) {
         console.error('Error disposing model:', error);
       }
@@ -280,7 +298,7 @@ const useLoadTextureWithRetry = () => {
 };
 
 // Instead, use Text component from @react-three/drei for 3D text
-const LoadingText = ({ children }) => (
+const LoadingText = ({ children, progress }) => (
   <Text
     position={[0, 0.4, 0]}
     fontSize={0.3}
@@ -291,7 +309,7 @@ const LoadingText = ({ children }) => (
     outlineWidth={0.02}
     outlineColor="black"
   >
-    {children}
+    {`${children} ${progress.toFixed(1)}%`}
   </Text>
 );
 
@@ -508,7 +526,7 @@ const TRAIT_MESH_MAPPING = {
 };
 
 // Loading model component with manual loading
-const LoadingModel = () => {
+const LoadingModel = ({ children }) => {
   const groupRef = useRef();
   const modelRef = useRef(null);
   const loadTexture = useLoadTextureWithRetry();
@@ -530,7 +548,7 @@ const LoadingModel = () => {
         const clonedScene = SkeletonUtils.clone(model.scene);
         clonedScene.scale.set(0.8, 0.8, 0.8);
         clonedScene.position.set(0, 0.9, 0);
-        clonedScene.rotation.y = -Math.PI/2;
+        clonedScene.rotation.y = 0;  // Reset to face forward for loading view
 
         modelRef.current = { scene: clonedScene };
         
@@ -573,7 +591,7 @@ const LoadingModel = () => {
   return (
     <>
       <group ref={groupRef} />
-      <LoadingText>loading...</LoadingText>
+      {children}
     </>
   );
 };
@@ -583,11 +601,16 @@ const MainModel = ({ selectedTraits, onLoad, onError, sceneRef }) => {
   const groupRef = useRef();
   const modelRef = useRef(null);
   const mixerRef = useRef(null);
+  const animationActionRef = useRef(null); // Store the current animation action
+  const animationStateRef = useRef({
+    time: 0,
+    playing: false
+  }); // Track animation state
   const [isLoading, setIsLoading] = useState(true);
   const isMobile = window.innerWidth <= 768;
   const { gl } = useThree();
 
-  // Animation setup function
+  // Animation setup function - modified to preserve animation state
   const setupAnimation = (scene, animations) => {
     try {
       if (!animations || animations.length === 0) {
@@ -596,29 +619,55 @@ const MainModel = ({ selectedTraits, onLoad, onError, sceneRef }) => {
       }
 
       console.log('Setting up animation mixer');
-      const mixer = new THREE.AnimationMixer(scene);
+      
+      // If mixer already exists, we'll preserve its state
+      const preserveState = mixerRef.current !== null;
+      const previousTime = preserveState ? animationStateRef.current.time : 0;
+      const wasPlaying = preserveState ? animationStateRef.current.playing : false;
+      
+      // Create a new mixer only if needed
+      if (!mixerRef.current) {
+        mixerRef.current = new THREE.AnimationMixer(scene);
+      } else {
+        // Update the mixer's root target while preserving its state
+        mixerRef.current.stopAllAction();
+        mixerRef.current._root = scene;
+      }
       
       // Find the idle animation
       const idleClip = animations.find(clip => clip.name.toLowerCase().includes('idle')) || animations[0];
       console.log('Using animation clip:', idleClip.name);
       
-      const action = mixer.clipAction(idleClip);
+      // Create and configure the action
+      const action = mixerRef.current.clipAction(idleClip);
+      animationActionRef.current = action;
       
       // Configure the animation
       action.setLoop(THREE.LoopRepeat);
       action.clampWhenFinished = false;
       action.timeScale = 1.0;
       
-      // Play the animation
-      action.reset().play();
+      if (preserveState) {
+        // Restore animation state
+        console.log('Preserving animation state:', { previousTime, wasPlaying });
+        if (wasPlaying) {
+          action.time = previousTime;
+          action.play();
+        }
+      } else {
+        // Start animation normally
+        action.reset().play();
+        animationStateRef.current.playing = true;
+      }
       
-      return mixer;
+      return mixerRef.current;
     } catch (error) {
       console.error('Error setting up animation:', error);
       return null;
     }
   };
 
+  // Initial model load - only run once
   useEffect(() => {
     let isMounted = true;
     let retryCount = 0;
@@ -629,13 +678,19 @@ const MainModel = ({ selectedTraits, onLoad, onError, sceneRef }) => {
         console.log('Starting model load process');
         setIsLoading(true);
 
-        // Clear old model if it exists
+        // Save animation state before cleaning up
+        if (mixerRef.current && animationActionRef.current) {
+          animationStateRef.current = {
+            time: animationActionRef.current.time,
+            playing: !animationActionRef.current.paused
+          };
+        }
+
+        // Clear old model if it exists (but keep mixer reference)
         if (modelRef.current) {
           console.log('Cleaning up old model');
           if (mixerRef.current) {
             mixerRef.current.stopAllAction();
-            mixerRef.current.uncacheRoot(mixerRef.current.getRoot());
-            mixerRef.current = null;
           }
           modelRef.current = null;
         }
@@ -668,29 +723,34 @@ const MainModel = ({ selectedTraits, onLoad, onError, sceneRef }) => {
 
         sceneRef.current = clonedScene;
         
-        // Setup animation (not mobile-dependent anymore)
+        // Setup animation (preserving state if possible)
         if (clonedAnimations.length > 0) {
           console.log('Setting up animations');
           mixerRef.current = setupAnimation(clonedScene, clonedAnimations);
+          
+          // Store mixer reference in the model
+          modelRef.current.mixer = mixerRef.current;
         }
 
         console.log('Updating mesh visibility');
         updateMeshVisibility();
         
-        // Wait for next frame to ensure everything is initialized
-        requestAnimationFrame(() => {
-          console.log('Model fully initialized and ready');
-          setIsLoading(false);
+        // Now that everything is ready, notify parent
+        if (onLoad) {
           onLoad(modelRef.current);
-        });
+        }
+
       } catch (error) {
-        console.error('Model loading error:', error);
-        if (retryCount < MAX_RETRIES && isMounted) {
-          retryCount++;
-          console.log(`Retrying model load (${retryCount}/${MAX_RETRIES})`);
-          setTimeout(loadModel, 1000);
-        } else if (isMounted) {
-          onError(error);
+        console.error('Error in model load:', error);
+        if (onError) onError(error);
+      } finally {
+        if (isMounted) {
+          // Only set loading to false after a delay to ensure smooth transition
+          setTimeout(() => {
+            if (isMounted) {
+              setIsLoading(false);
+            }
+          }, 1000);
         }
       }
     };
@@ -700,11 +760,16 @@ const MainModel = ({ selectedTraits, onLoad, onError, sceneRef }) => {
     return () => {
       console.log('Component cleanup');
       isMounted = false;
-      if (mixerRef.current) {
-        mixerRef.current.stopAllAction();
-        mixerRef.current.uncacheRoot(mixerRef.current.getRoot());
-        mixerRef.current = null;
+      
+      // Save animation state before cleanup
+      if (mixerRef.current && animationActionRef.current) {
+        animationStateRef.current = {
+          time: animationActionRef.current.time,
+          playing: !animationActionRef.current.paused
+        };
       }
+      
+      // Clean up other resources
       if (modelRef.current) {
         modelRef.current.scene.traverse((obj) => {
           if (obj.geometry) obj.geometry.dispose();
@@ -719,12 +784,27 @@ const MainModel = ({ selectedTraits, onLoad, onError, sceneRef }) => {
         modelRef.current = null;
       }
     };
-  }, [onLoad, onError]);
+  }, [onLoad, onError]); // Only run on mount, not when selectedTraits changes
 
-  // Update animation mixer in render loop (removed mobile check)
+  // Separate effect to handle trait changes
+  useEffect(() => {
+    if (modelRef.current && sceneRef.current) {
+      // We only need to update mesh visibility when traits change
+      // No animation changes needed - just visibility changes
+      console.log('Traits changed, updating mesh visibility only');
+      updateMeshVisibility();
+    }
+  }, [selectedTraits]);
+
+  // Update animation mixer in render loop
   useFrame((state, delta) => {
     if (mixerRef.current) {
       mixerRef.current.update(delta);
+      
+      // Update our saved time after each frame
+      if (animationActionRef.current && animationStateRef.current.playing) {
+        animationStateRef.current.time = animationActionRef.current.time;
+      }
     }
   });
 
@@ -808,12 +888,34 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
   const [modelLoaded, setModelLoaded] = useState(false);
   const [showLoadingModel, setShowLoadingModel] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [isMainModelLoading, setIsMainModelLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [retryKey, setRetryKey] = useState(0);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const sceneRootRef = useRef();
   const mainModelRef = useRef(null);
   const exportLockRef = useRef(false);
   const { gl, scene, camera } = useThree();
+  const cameraRef = useRef();
+  const controlsRef = useRef();
+
+  // Track loading progress
+  useEffect(() => {
+    let interval;
+    if (isMainModelLoading) {
+      interval = setInterval(() => {
+        const currentProgress = modelManager.loadingProgress.get(GLB_URL) || 0;
+        setLoadingProgress(prev => {
+          // Only update if the new progress is higher
+          return currentProgress > prev ? currentProgress : prev;
+        });
+      }, 100);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isMainModelLoading]);
 
   // Handle window resize
   useEffect(() => {
@@ -827,29 +929,62 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
 
   // Handle model loading sequence
   const handleModelLoad = (modelRef) => {
-    console.log('📦 Main model loaded, waiting for full initialization...');
+    console.log('📦 Main model loaded, checking initialization...');
     
     // Store the model reference
     mainModelRef.current = modelRef;
     
-    // Don't hide loading view until model is fully loaded and processed
+    // Verify model is fully initialized
     if (!mainModelRef.current || !mainModelRef.current.scene) {
       console.log('📦 Model not fully initialized, keeping loading view...');
       return;
     }
     
-    // Add a small delay to ensure the model is fully rendered
-    setTimeout(() => {
-      console.log('📦 Setting final states:', {
-        modelLoaded: true,
-        showLoadingModel: false,
-        loadError: false
-      });
+    // If model is fully initialized and loaded, remove loading view
+    if (mainModelRef.current && mainModelRef.current.scene && loadingProgress >= 100) {
+      console.log('📦 Model fully initialized and loaded, removing loading view');
       setModelLoaded(true);
       setLoadError(false);
       setShowLoadingModel(false);
+      setIsMainModelLoading(false);
       exportLockRef.current = false;
-    }, 1000);
+
+      // Only do the camera transition if this is the first time the loading view is being removed
+      if (!initialLoadComplete && cameraRef.current && controlsRef.current) {
+        setInitialLoadComplete(true);
+        
+        // Calculate new camera position
+        const radius = 3; // Distance from target
+        const angle = -Math.PI / 7.2; // -25 degrees in radians (increased from -15)
+        const height = 1.2; // Camera height
+        const x = radius * Math.sin(angle);
+        const z = radius * Math.cos(angle);
+        
+        // Smoothly move camera
+        gsap.to(cameraRef.current.position, {
+          x: x,
+          y: height,
+          z: z,
+          duration: 1.5,
+          ease: "power2.inOut"
+        });
+
+        // Update camera settings
+        cameraRef.current.fov = 25;
+        cameraRef.current.updateProjectionMatrix();
+
+        // Update controls target
+        gsap.to(controlsRef.current.target, {
+          x: 0,
+          y: 1.0,
+          z: 0,
+          duration: 1.5,
+          ease: "power2.inOut"
+        });
+      }
+    } else {
+      console.log('📦 Model or loading not complete, keeping loading view');
+    }
   };
 
   const handleLoadError = (error) => {
@@ -866,97 +1001,246 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
     exportLockRef.current = false;
   };
 
-  // Log when loading view visibility changes
+  // Log when loading states change
   useEffect(() => {
-    console.log('👁️ Loading view visibility changed:', { showLoadingModel });
-  }, [showLoadingModel]);
-
-  // Log when model loaded state changes
-  useEffect(() => {
-    console.log('📦 Model loaded state changed:', { modelLoaded });
-  }, [modelLoaded]);
+    console.log('Loading states changed:', { 
+      showLoadingModel, 
+      modelLoaded, 
+      isMainModelLoading,
+      loadingProgress 
+    });
+  }, [showLoadingModel, modelLoaded, isMainModelLoading, loadingProgress]);
 
   // Expose functions through ref
   useImperativeHandle(ref, () => ({
     takeScreenshot: async () => {
       if (!modelLoaded || !sceneRootRef.current) return null;
 
-      // Store current camera state
-      const originalPosition = camera.position.clone();
-      const originalRotation = camera.rotation.clone();
-      const originalFov = camera.fov;
-      const originalAspect = camera.aspect;
-      const originalTarget = camera.target?.clone();
+      // Preserve animation state
+      let currentAnimationTime = 0;
+      let wasPlaying = false;
+      
+      if (mainModelRef.current && mainModelRef.current.mixer) {
+        // Store animation state from main model
+        const mixer = mainModelRef.current.mixer;
+        const actions = mixer._actions;
+        if (actions && actions.length > 0) {
+          currentAnimationTime = actions[0].time;
+          wasPlaying = !actions[0].paused;
+        }
+      }
 
-      // Set camera to square aspect ratio (1:1)
-      camera.aspect = 1;
-      camera.updateProjectionMatrix();
+      // Create a new scene for the screenshot
+      const screenshotScene = new THREE.Scene();
+      
+      // Clone the current scene for the screenshot
+      const clonedScene = SkeletonUtils.clone(sceneRootRef.current);
+      screenshotScene.add(clonedScene);
 
-      // Set camera to zoomed portrait position
+      // Create a new camera for the screenshot
+      const screenshotCamera = new THREE.PerspectiveCamera(
+        isMobile ? 35 : 30, // FOV
+        1, // Aspect ratio (1:1 for square screenshot)
+        0.1,
+        1000
+      );
+
+      // Position the camera for the screenshot
       let defaultPosition = isMobile ? 
-        new THREE.Vector3(-0.2, 1.0, 1.5) : // Further back and slightly lower for mobile
-        new THREE.Vector3(-0.3, 1.1, 1.65);  // Further back and slightly lower for desktop
+        new THREE.Vector3(-0.2, 1.0, 1.5) : // Mobile position
+        new THREE.Vector3(-0.3, 1.1, 1.65);  // Desktop position
       
       // Rotate the camera position 15 degrees counterclockwise around the Y axis
-      const angle = -Math.PI / 12; // -15 degrees in radians (negative for counterclockwise)
+      const angle = -Math.PI / 12; // -15 degrees in radians
       const cos = Math.cos(angle);
       const sin = Math.sin(angle);
       const x = defaultPosition.x * cos + defaultPosition.z * sin;
       const z = -defaultPosition.x * sin + defaultPosition.z * cos;
       defaultPosition = new THREE.Vector3(x, defaultPosition.y, z);
       
-      camera.position.copy(defaultPosition);
-      camera.fov = isMobile ? 35 : 30; // Tighter FOV for more zoom
-      camera.lookAt(0, 0.9, 0);
-      camera.updateProjectionMatrix(); // Required after FOV change
+      screenshotCamera.position.copy(defaultPosition);
+      screenshotCamera.lookAt(0, 0.9, 0);
+      screenshotCamera.updateProjectionMatrix();
 
-      // Store original renderer size and pixel ratio
-      const originalSize = {
-        width: gl.domElement.width,
-        height: gl.domElement.height
-      };
-      const originalPixelRatio = window.devicePixelRatio;
-
-      // Set renderer size to 1024x1024
-      gl.setSize(1024, 1024);
-      gl.setPixelRatio(1); // Set to 1 since we're already at target resolution
-
-      // Store original clear color
-      const originalClearColor = gl.getClearColor(new THREE.Color());
-      const originalClearAlpha = gl.getClearAlpha();
-
-      // Create gradient colors based on theme
-      const gradientColor = new THREE.Color(themecolor);
-      
-      // Set clear color to match the preview gradient
-      gl.setClearColor(gradientColor, 0.6);
-
-      // Render scene
-      gl.render(scene, camera);
-
-      // Convert to blob
-      return new Promise((resolve) => {
-        gl.domElement.toBlob((blob) => {
-          // Restore all original settings
-          gl.setClearColor(originalClearColor, originalClearAlpha);
-          gl.setSize(originalSize.width, originalSize.height);
-          gl.setPixelRatio(originalPixelRatio);
-          camera.position.copy(originalPosition);
-          camera.rotation.copy(originalRotation);
-          camera.fov = originalFov;
-          camera.aspect = originalAspect;
-          camera.updateProjectionMatrix();
-          if (originalTarget) {
-            camera.target = originalTarget;
-          }
-          resolve(blob);
-        }, 'image/png');
+      // Create a new renderer for the screenshot
+      const screenshotRenderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        preserveDrawingBuffer: true
       });
+      screenshotRenderer.setSize(1024, 1024);
+      screenshotRenderer.setPixelRatio(1);
+      screenshotRenderer.setClearColor(0x000000, 0); // Set to transparent
+
+      // Copy environment and lighting settings from main scene
+      scene.traverse((obj) => {
+        if (obj.isLight) {
+          const lightClone = obj.clone();
+          // Ensure light properties are copied
+          lightClone.intensity = obj.intensity;
+          lightClone.color = obj.color.clone();
+          lightClone.position.copy(obj.position);
+          lightClone.rotation.copy(obj.rotation);
+          lightClone.scale.copy(obj.scale);
+          screenshotScene.add(lightClone);
+        }
+      });
+
+      // Add Environment
+      const environment = scene.environment;
+      if (environment) {
+        screenshotScene.environment = environment.clone();
+      }
+
+      // Render screenshot scene
+      screenshotRenderer.render(screenshotScene, screenshotCamera);
+
+      // Create a canvas to compose the final image
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+
+      // Draw background with theme color
+      // Ensure hex color has # prefix
+      const bgColor = themecolor.startsWith('#') ? themecolor : `#${themecolor}`;
+      ctx.fillStyle = bgColor;
+      ctx.globalAlpha = 0.85; // Increased opacity for more vibrant colors
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.globalAlpha = 1.0;
+
+      // Draw the rendered scene on top
+      ctx.drawImage(screenshotRenderer.domElement, 0, 0);
+
+      // Get the screenshot as a blob from the composed canvas
+      const blob = await new Promise((resolve) => {
+        canvas.toBlob((blob) => resolve(blob), 'image/png');
+      });
+
+      // Clean up
+      screenshotScene.traverse((obj) => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach(mat => mat.dispose());
+          } else {
+            obj.material.dispose();
+          }
+        }
+      });
+      screenshotRenderer.dispose();
+
+      return blob;
+    },
+
+    takeViewfinderScreenshot: async () => {
+      if (!modelLoaded || !gl) return null;
+
+      try {
+        // Get current renderer and camera
+        const renderer = gl;
+        const currentCamera = cameraRef.current;
+        const currentAspect = gl.domElement.width / gl.domElement.height;
+        
+        // Temporarily disable orbit controls to prevent movement during screenshot
+        if (controlsRef.current) {
+          controlsRef.current.enabled = false;
+        }
+        
+        // Force a render with the current camera to ensure screenshot captures current view
+        renderer.render(scene, currentCamera);
+        
+        // Create a new high-resolution canvas for the final composition
+        const canvas = document.createElement('canvas');
+        canvas.width = 1024;
+        canvas.height = Math.floor(1024 / currentAspect);
+        const ctx = canvas.getContext('2d');
+        
+        // Parse theme color to ensure correct format
+        const bgColor = themecolor.startsWith('#') ? themecolor : `#${themecolor}`;
+        
+        // Fill with solid dark background first (similar to the app background)
+        ctx.fillStyle = '#13151a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw a radial gradient background matching the UI more closely
+        const gradient = ctx.createRadialGradient(
+          canvas.width/2, canvas.height/2, 0,
+          canvas.width/2, canvas.height/2, canvas.width * 0.8
+        );
+        
+        // Use color values that match the CSS in PreviewSection
+        gradient.addColorStop(0, bgColor + '99'); // ~60% opacity at center (matching CSS)
+        gradient.addColorStop(0.7, 'transparent'); // Fade to transparent at 70%
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Get the WebGL canvas content scaled to our high-res canvas
+        const tempImg = new Image();
+        await new Promise((resolve) => {
+          tempImg.onload = resolve;
+          tempImg.src = renderer.domElement.toDataURL('image/png');
+        });
+        
+        // Calculate scaling to maintain aspect ratio and center in canvas
+        const scale = Math.min(
+          canvas.width / tempImg.width,
+          canvas.height / tempImg.height
+        );
+        
+        const scaledWidth = tempImg.width * scale;
+        const scaledHeight = tempImg.height * scale;
+        const offsetX = (canvas.width - scaledWidth) / 2;
+        const offsetY = (canvas.height - scaledHeight) / 2;
+        
+        // Draw the WebGL canvas content on top
+        ctx.drawImage(tempImg, offsetX, offsetY, scaledWidth, scaledHeight);
+        
+        // Optional: Add subtle paper texture effect (if needed)
+        // This would require loading and drawing a texture image
+        
+        // Get the screenshot as a blob
+        const blob = await new Promise((resolve) => {
+          canvas.toBlob((blob) => resolve(blob), 'image/png');
+        });
+        
+        // Re-enable orbit controls
+        if (controlsRef.current) {
+          controlsRef.current.enabled = true;
+        }
+        
+        return blob;
+      } catch (error) {
+        console.error('Error capturing viewfinder screenshot:', error);
+        
+        // Re-enable orbit controls in case of error
+        if (controlsRef.current) {
+          controlsRef.current.enabled = true;
+        }
+        
+        return null;
+      }
     },
 
     exportScene: async (exportType = 'animated') => {
       console.log(`Starting export process for type: ${exportType}`);
       
+      // Preserve animation state if possible
+      let originalMixer = null;
+      let currentAnimationTime = 0;
+      let wasPlaying = false;
+      
+      if (mainModelRef.current && mainModelRef.current.mixer) {
+        // Store the animation state before export
+        originalMixer = mainModelRef.current.mixer;
+        const actions = originalMixer._actions;
+        if (actions && actions.length > 0) {
+          currentAnimationTime = actions[0].time;
+          wasPlaying = !actions[0].paused;
+        }
+      }
+
       // Add loading state check with timeout
       const waitForLoad = async (maxWaitTime = 10000) => {
         const startTime = Date.now();
@@ -1143,7 +1427,7 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
         };
         console.log('Export options:', options);
 
-        return new Promise((resolve, reject) => {
+        const gltfData = await new Promise((resolve, reject) => {
           console.log('Starting export...');
           let exportRetryCount = 0;
           const MAX_EXPORT_RETRIES = 3;
@@ -1174,6 +1458,9 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
 
           attemptExport();
         });
+
+        exportLockRef.current = false;
+        return gltfData;
       } catch (error) {
         console.error('Error in exportScene:', error);
         exportLockRef.current = false;
@@ -1184,83 +1471,31 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
 
   return (
     <>
-      <PerspectiveCamera 
-        makeDefault 
-        position={isMobile ? [-0.3, 1.2, 1.8] : [-0.5, 1.4, 2.0]} 
-        fov={isMobile ? 40 : 35}
-      />
-      
-      <OrbitControls 
-        enableZoom={true} 
+      <OrbitControls
+        ref={controlsRef}
         enablePan={false}
-        minDistance={isMobile ? 1.2 : 1.5}
-        maxDistance={isMobile ? 2.5 : 3.0}
-        target={[0, 0.9, 0]}
-        enableDamping={true}
-        dampingFactor={0.05}
-        minPolarAngle={Math.PI / 3}
-        maxPolarAngle={Math.PI / 1.5}
-        minAzimuthAngle={-Math.PI}
-        maxAzimuthAngle={Math.PI}
-        rotateSpeed={isMobile ? 0.5 : 0.7}
-        touches={{
-          ONE: THREE.TOUCH.ROTATE,
-          TWO: THREE.TOUCH.DOLLY_PAN
-        }}
-        mouseButtons={{
-          LEFT: THREE.MOUSE.ROTATE,
-          MIDDLE: THREE.MOUSE.DOLLY,
-          RIGHT: THREE.MOUSE.PAN
-        }}
+        enableZoom={true}
+        minDistance={1.5}
+        maxDistance={8}
+        target={[0, 1.0, 0]}
       />
-      
-      <ambientLight intensity={0.3} />
-      
-      <directionalLight 
-        position={[2, 2, 2]} 
-        intensity={0.8} 
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
+      <PerspectiveCamera 
+        ref={cameraRef}
+        makeDefault 
+        position={[0, 1.2, 2.5]} 
+        fov={35}
       />
-      
-      <directionalLight 
-        position={[-1.5, 1, -1]} 
-        intensity={0.4} 
-        color="#b4c7ff"
-      />
-      
-      <spotLight
-        position={[0, 2, -2.5]}
-        intensity={0.35}
-        angle={0.6}
-        penumbra={1}
-        color="#ffffff"
-      />
-      
-      <pointLight
-        position={[0, 0.5, 1.5]}
-        intensity={0.2}
-        distance={3}
-        color="#b4c7ff"
-      />
-
-      {/* Add backlight matching theme color */}
-      <spotLight
-        position={[0, 2.0, -1.5]}
-        intensity={1.5}
-        angle={Math.PI / 3}
-        penumbra={0.8}
-        distance={5}
-        color={themecolor}
-      />
-
       <Environment preset="studio" />
-      
+      <ambientLight intensity={0.5} />
+      <directionalLight position={[5, 5, 5]} intensity={0.5} />
       <Suspense fallback={null}>
-        {showLoadingModel && <LoadingModel />}
+        {(showLoadingModel || !modelLoaded || isMainModelLoading || loadingProgress < 100) && (
+          <LoadingModel>
+            <LoadingText progress={loadingProgress}>loading...</LoadingText>
+          </LoadingModel>
+        )}
         {loadError ? (
-          <LoadingText>Error loading model. Please try refreshing the page.</LoadingText>
+          <LoadingText progress={0}>Error loading model. Please try refreshing the page.</LoadingText>
         ) : (
           <MainModel 
             key={retryKey}

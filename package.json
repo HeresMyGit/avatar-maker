@@ -25,6 +25,7 @@
     "@walletconnect/modal": "^2.6.2",
     "@web3modal/wagmi": "^5.1.11",
     "ethers": "^6.11.1",
+    "gsap": "^3.12.7",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^7.1.5",

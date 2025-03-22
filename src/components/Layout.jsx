@@ -19,8 +19,7 @@ export const NAVIGATION_ITEMS = [
       { path: '/og', label: 'OG mfers' },
       { path: '/customs', label: 'Customs' },
       { path: '/based', label: 'Based' },
-      { path: '/playground-gallery', label: 'Playground Gallery' },
-      { path: '/my', label: 'My mfers' }
+      { path: '/playground-gallery', label: 'Playground Gallery' }
     ]
   }
 ];
@@ -434,7 +433,7 @@ const Layout = ({ children, themeColor, onThemeChange }) => {
             <SettingsContainer>
               <SettingsButton 
                 onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                themeColor={themeColor}
+                data-color={themeColor}
                 isOpen={isSettingsOpen}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

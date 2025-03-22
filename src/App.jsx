@@ -9,7 +9,6 @@ import Playground from './pages/Playground';
 import OGMfers from './pages/OGMfers';
 import Customs from './pages/Customs';
 import Based from './pages/Based';
-import MyMfers from './pages/MyMfers';
 import PlaygroundGallery from './pages/PlaygroundGallery';
 import Details from './pages/Details';
 
@@ -29,7 +28,6 @@ function App() {
             <Route path="/og" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><OGMfers themeColor={themeColor} /></Layout>} />
             <Route path="/customs" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Customs themeColor={themeColor} /></Layout>} />
             <Route path="/based" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Based themeColor={themeColor} /></Layout>} />
-            <Route path="/my" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><MyMfers themeColor={themeColor} /></Layout>} />
             <Route path="/playground-gallery" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><PlaygroundGallery themeColor={themeColor} /></Layout>} />
             <Route path="/details" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Details themeColor={themeColor} /></Layout>} />
             <Route path="*" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Home themeColor={themeColor} /></Layout>} />
