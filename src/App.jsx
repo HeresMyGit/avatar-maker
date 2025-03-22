@@ -25,6 +25,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Home themeColor={themeColor} /></Layout>} />
             <Route path="/playground" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Playground themeColor={themeColor} setThemeColor={setThemeColor} /></Layout>} />
+            <Route path="/create" element={<Playground themeColor={themeColor} setThemeColor={setThemeColor} standalone={true} />} />
             <Route path="/og" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><OGMfers themeColor={themeColor} /></Layout>} />
             <Route path="/customs" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Customs themeColor={themeColor} /></Layout>} />
             <Route path="/based" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Based themeColor={themeColor} /></Layout>} />

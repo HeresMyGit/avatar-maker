@@ -115,15 +115,18 @@ const getButtonGradient = (props) => css`
 
 const PlaygroundContainer = styled.div`
   display: flex;
-  height: 100vh;
+  height: ${props => props.standalone ? '100vh' : 'calc(100vh - 80px)'};
   width: 100vw;
   background: linear-gradient(135deg, #13151a 0%, #1a1c23 100%);
   color: #fff;
   position: relative;
   overflow: hidden;
+  margin-top: ${props => props.standalone ? '0' : '80px'};
 
   @media (max-width: 768px) {
     flex-direction: column;
+    height: ${props => props.standalone ? '100vh' : 'calc(100vh - 60px)'};
+    margin-top: ${props => props.standalone ? '0' : '60px'};
   }
 
   &::before {
@@ -543,7 +546,7 @@ const CloseButton = styled.button`
   }
 `;
 
-function Playground({ themeColor, setThemeColor }) {
+function Playground({ themeColor, setThemeColor, standalone = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const characterPlaygroundRef = useRef(new CharacterPlayground());
@@ -903,7 +906,7 @@ function Playground({ themeColor, setThemeColor }) {
   return (
     <>
       <LoadingOverlay isVisible={isMinting} />
-      <PlaygroundContainer themeColor={themeColor}>
+      <PlaygroundContainer themeColor={themeColor} standalone={standalone}>
         <PreviewSection themeColor={themeColor}>
           <TopBar>
             <Button 
@@ -976,17 +979,19 @@ function Playground({ themeColor, setThemeColor }) {
                 </DropdownOption>
               </ExportDropdown>
             </ExportDropdownContainer>
-            <Button 
-              variant="primary"
-              onClick={handleMintClick}
-              disabled={!hasSelectedTraits || isMinting}
-              themeColor={themeColor}
-            >
-              <span>⚡️</span>
-              <span>
-                {isMinting ? 'Minting...' : 'Mint'}
-              </span>
-            </Button>
+            {!standalone && (
+              <Button 
+                variant="primary"
+                onClick={handleMintClick}
+                disabled={!hasSelectedTraits || isMinting}
+                themeColor={themeColor}
+              >
+                <span>⚡️</span>
+                <span>
+                  {isMinting ? 'Minting...' : 'Mint'}
+                </span>
+              </Button>
+            )}
           </TopBar>
           <Canvas>
             <CharacterPreview 
