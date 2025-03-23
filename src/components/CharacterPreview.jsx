@@ -2,23 +2,16 @@ import { useRef, useEffect, useState, forwardRef, useImperativeHandle, Suspense,
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, useGLTF, Environment, useAnimations, Text } from '@react-three/drei';
 import { TRAIT_CATEGORIES } from '../config/traits';
-import * as THREE from 'three';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import styled from '@emotion/styled';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import * as THREE from 'three';
 import gsap from 'gsap';
 
 // Add retry constants
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
-
-// Use the same THREE instance for all loaders
-const gltfLoader = new GLTFLoader();
-gltfLoader.setCrossOrigin('anonymous');
-
-const textureLoader = new THREE.TextureLoader();
-textureLoader.setCrossOrigin('anonymous');
 
 const GLB_URL = new URL("https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/builders/mfermashup.glb").toString();
 const EXPORT_GLB_URL = new URL("https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/builders/mfermashup-t.glb").toString();

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { WagmiConfig } from 'wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { config } from './config/wallet'
@@ -23,11 +23,7 @@ function App() {
       <WagmiConfig config={config}>
         <Router basename="/avatar-maker">
           <Routes>
-            {/* Make /create the default route */}
-            <Route path="/" element={<Navigate to="/create" replace />} />
-            <Route path="/create" element={<Playground themeColor={themeColor} setThemeColor={setThemeColor} standalone={true} />} />
-            
-            {/* Keep other routes with Layout */}
+            <Route path="/" element={<Playground themeColor={themeColor} setThemeColor={setThemeColor} standalone={true} />} />
             <Route path="/home" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Home themeColor={themeColor} /></Layout>} />
             <Route path="/playground" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Playground themeColor={themeColor} setThemeColor={setThemeColor} /></Layout>} />
             <Route path="/og" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><OGMfers themeColor={themeColor} /></Layout>} />
@@ -35,9 +31,7 @@ function App() {
             <Route path="/based" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Based themeColor={themeColor} /></Layout>} />
             <Route path="/playground-gallery" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><PlaygroundGallery themeColor={themeColor} /></Layout>} />
             <Route path="/details" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Details themeColor={themeColor} /></Layout>} />
-            
-            {/* Redirect all unknown routes to /create */}
-            <Route path="*" element={<Navigate to="/create" replace />} />
+            <Route path="*" element={<Playground themeColor={themeColor} setThemeColor={setThemeColor} standalone={true} />} />
           </Routes>
         </Router>
       </WagmiConfig>
