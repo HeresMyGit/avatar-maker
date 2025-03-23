@@ -15,7 +15,7 @@ const RETRY_DELAY = 1000;
 
 const GLB_URL = new URL("https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/builders/mfermashup.glb").toString();
 const EXPORT_GLB_URL = new URL("https://sfo3.digitaloceanspaces.com/cybermfers/cybermfers/builders/mfermashup-t.glb").toString();
-const LOADING_MODEL_URL = "/avatar-maker/sartoshi-head.glb";
+const LOADING_MODEL_URL = "/sartoshi-head.glb";
 
 // Create a model manager to handle loading and caching
 const modelManager = {
@@ -546,9 +546,9 @@ const LoadingModel = ({ children }) => {
         }
 
         const clonedScene = SkeletonUtils.clone(model.scene);
-        clonedScene.scale.set(0.8, 0.8, 0.8);
+        clonedScene.scale.set(0.6, 0.6, 0.6);
         clonedScene.position.set(0, 0.9, 0);
-        clonedScene.rotation.y = 0;  // Reset to face forward for loading view
+        clonedScene.rotation.y = -Math.PI/2;  // Rotate 90 degrees clockwise
 
         modelRef.current = { scene: clonedScene };
         
@@ -1482,7 +1482,7 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor },
       <PerspectiveCamera 
         ref={cameraRef}
         makeDefault 
-        position={[0, 1.2, 2.5]} 
+        position={[0, 1.2, 3.2]} 
         fov={35}
       />
       <Environment preset="studio" />
