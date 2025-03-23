@@ -1003,8 +1003,8 @@ function Playground({ themeColor, setThemeColor, standalone = false }) {
         </PreviewSection>
         <SelectorSection themeColor={themeColor}>
           <Title>
-            <MainTitle themeColor={themeColor}>mfer Playground</MainTitle>
-            <Subtitle>Build your unique character</Subtitle>
+            <MainTitle themeColor={themeColor}>mfer Avatar Playground</MainTitle>
+            <Subtitle>build ur own mfer</Subtitle>
           </Title>
           <TraitSelector 
             selectedTraits={selectedTraits} 

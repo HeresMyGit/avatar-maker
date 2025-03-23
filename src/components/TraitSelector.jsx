@@ -182,7 +182,7 @@ const HeaderControls = styled.div`
 
 function TraitSelector({ selectedTraits = {}, onTraitChange, themeColor }) {
   const [expandedCategories, setExpandedCategories] = useState({});
-  const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(true);
 
   const handleClearCategory = (e, category) => {
     e.stopPropagation();
