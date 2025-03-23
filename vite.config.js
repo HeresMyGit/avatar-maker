@@ -11,7 +11,7 @@ export default defineConfig({
       }
     })
   ],
-  base: '/avatar-maker/',
+  base: '/',
   resolve: {
     alias: {
       '@': '/src'
