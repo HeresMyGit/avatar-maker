@@ -305,7 +305,7 @@ const LoadingText = ({ children, progress }) => (
     color="white"
     anchorX="center"
     anchorY="middle"
-    font="/avatar-maker/SartoshiScript-Regular.otf"
+    font="/SartoshiScript-Regular.otf"
     outlineWidth={0.02}
     outlineColor="black"
   >

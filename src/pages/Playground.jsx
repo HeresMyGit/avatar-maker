@@ -53,7 +53,7 @@ const getPreviewGradient = (props) => css`
     left: 0;
     right: 0;
     bottom: 0;
-    background: url('/avatar-maker/paper-texture.png');
+    background: url('/paper-texture.png');
     opacity: 0.03;
     pointer-events: none;
   }
@@ -136,7 +136,7 @@ const PlaygroundContainer = styled.div`
     left: 0;
     right: 0;
     bottom: 0;
-    background: url('/avatar-maker/paper-texture.png');
+    background: url('/paper-texture.png');
     opacity: 0.02;
     pointer-events: none;
   }
