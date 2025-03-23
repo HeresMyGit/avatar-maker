@@ -21,7 +21,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <WagmiConfig config={config}>
-        <Router basename="/avatar-maker">
+        <Router>
           <Routes>
             <Route path="/" element={<Playground themeColor={themeColor} setThemeColor={setThemeColor} standalone={true} />} />
             <Route path="/home" element={<Layout themeColor={themeColor} onThemeChange={setThemeColor}><Home themeColor={themeColor} /></Layout>} />
