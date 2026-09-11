@@ -1,6 +1,7 @@
 import { Matrix4, Scene } from 'three';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { addExportBeacon } from './export-beacon.js';
 
 export const CURATED_AVATAR_DEFAULTS = Object.freeze({
   tracking: 'enhanced', tongue: 'neural', robotArticulation: 'expressive',
@@ -105,6 +106,10 @@ function bakeReferences(scene, original, metadata, selected) {
   const baked = [];
   for (const [name, requests] of groups) {
     const mesh = scene.getObjectByName(name);
+    // Selected exports already carry these samples as compact metadata. Keep
+    // them on re-export instead of looking for deliberately omitted geometry.
+    const existing = original.mferRuntimeReferences?.meshes.find(reference => reference.name === name);
+    if (!mesh && existing) { baked.push(copy(existing)); continue; }
     if (!mesh?.isSkinnedMesh) throw new Error(`Missing attachment reference mouth: ${name}`);
     const vertices = [...new Set(requests.flatMap(({ source }) => Object.values(source.mouths[name]).flatMap(samples => samples.map(sample => sample.vertex))))].sort((a, b) => a - b);
     const remap = new Map(vertices.map((vertex, index) => [vertex, index]));
@@ -139,6 +144,8 @@ export async function exportAvatar(gltf, visibleMeshNames, exportType = 'animate
   if (!gltf?.scene) throw new Error('Load the avatar before exporting.');
   if (!['animated', 't-pose'].includes(exportType)) throw new Error(`Unsupported avatar export: ${exportType}`);
   const selected = new Set(visibleMeshNames);
+  // An exported helper is regenerated from its lamp, never treated as a trait.
+  selected.delete('robot_light_glow');
   const model = clone(gltf.scene);
   if (model.getObjectByName('tongue')?.isMesh) selected.add('tongue');
   for (const name of selected) if (!model.getObjectByName(name)?.isMesh) throw new Error(`Unknown selected mesh: ${name}`);
@@ -165,6 +172,19 @@ export async function exportAvatar(gltf, visibleMeshNames, exportType = 'animate
     const cloneMaterial = source => { const material = source.clone(); materials.add(material); return material; };
     node.material = Array.isArray(node.material) ? node.material.map(cloneMaterial) : cloneMaterial(node.material);
   });
+  const animations = exportType === 'animated'
+    ? (gltf.animations ?? []).filter(clip => clip.name !== 'Beacon Blink').map(clip => {
+      const cloned = clip.clone();
+      cloned.tracks = cloned.tracks.filter(track => !track.name.startsWith('robot_light_glow.'));
+      return cloned;
+    }) : [];
+  if (exportType === 'animated' && selected.has('robot_light')) {
+    const beaconBlink = addExportBeacon(model, animations, geometries, materials);
+    if (beaconBlink) {
+      metadata.mferAvatar.beaconBlink = beaconBlink;
+      metadata.mferAvatar.auxiliaryMeshes = [beaconBlink.mesh];
+    }
+  }
   model.userData = {};
   const scene = new Scene();
   scene.name = gltf.scene.name || 'Avatar';
@@ -178,7 +198,7 @@ export async function exportAvatar(gltf, visibleMeshNames, exportType = 'animate
   try {
     return await exporter.parseAsync(scene, {
       binary: true, onlyVisible: false, trs: true, includeCustomExtensions: true,
-      animations: exportType === 'animated' ? (gltf.animations ?? []).map(clip => clip.clone()) : [],
+      animations,
     });
   } finally {
     for (const geometry of geometries) geometry.dispose();

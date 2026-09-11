@@ -69,9 +69,15 @@ export function createAvatarDriver(avatar: Object3D, gltf: AvatarSource = {}) {
   grille.setOptions({ articulation: 'expressive', mode: 'speaker', strength: 1 });
 
   const beacon = avatar.getObjectByName('robot_light') as Mesh | undefined;
+  const beaconGlow = avatar.getObjectByName('robot_light_glow') as Mesh | undefined;
+  const beaconMorph = beaconGlow?.morphTargetDictionary?.beaconBlink;
+  const bakedBeacon = beaconMorph !== undefined && !!beaconGlow?.morphTargetInfluences;
+  const beaconRestWeight = bakedBeacon ? beaconGlow!.morphTargetInfluences![beaconMorph!] : 0;
+  const exportedPeriod = avatar.userData.mferAvatar?.beaconBlink?.periodSeconds;
+  const beaconPeriod = Number.isFinite(exportedPeriod) && exportedPeriod > 0 ? exportedPeriod : 1 / .9;
   const beaconOriginal = beacon?.material;
   const beaconMaterials: Material[] = [];
-  if (beacon?.isMesh) {
+  if (beacon?.isMesh && !bakedBeacon) {
     const cloneMaterial = (source: Material) => {
       const copy = source.clone();
       if ((copy as MeshStandardMaterial).isMeshStandardMaterial) {
@@ -163,6 +169,10 @@ export function createAvatarDriver(avatar: Object3D, gltf: AvatarSource = {}) {
       tongue.setOptions({ enabled: true, ...tonguePose });
       tongue.update(dt);
       const pulse = Math.pow((1 + Math.sin(idleSeconds * Math.PI * 2 * .9)) / 2, 6);
+      if (bakedBeacon) {
+        const phase = (idleSeconds % beaconPeriod) / beaconPeriod;
+        beaconGlow!.morphTargetInfluences![beaconMorph!] = phase >= .15 && phase < .37 ? 1 : 0;
+      }
       for (const material of beaconMaterials) if ((material as MeshStandardMaterial).isMeshStandardMaterial) {
         (material as MeshStandardMaterial).emissiveIntensity = .12 + 1.5 * pulse;
       }
@@ -171,6 +181,7 @@ export function createAvatarDriver(avatar: Object3D, gltf: AvatarSource = {}) {
       if (disposed) return;
       retarget.dispose(); physics?.dispose(); mouthProps.dispose(); tongue.dispose(); grille.dispose();
       if (beacon && beaconOriginal) beacon.material = beaconOriginal;
+      if (bakedBeacon) beaconGlow!.morphTargetInfluences![beaconMorph!] = beaconRestWeight;
       for (const material of beaconMaterials) material.dispose();
       references.dispose();
       disposed = true;

@@ -19,6 +19,12 @@ changing traits so spring state resets without losing face/body calibration.
 component lifecycles. Call `dispose()`
 before disposing the avatar's geometries/materials.
 
+Animated robot exports also bake an on/off beacon blink into the body clips and
+a separate `Beacon Blink` clip. A plain GLB animation player can play this without
+the runtime. See [EXPORT.md](EXPORT.md) for playback and the generated glow helper.
+When the companion driver is used, it takes over that helper's blink along with
+the other procedural effects.
+
 Robot mouth articulation and speaker vibration are separate inputs. Camera
 tracking drives the existing checker rows and expressions. Optional
 `robotVoiceLevel` (0–1) drives speaker vibration; it defaults to zero and can come

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { Box3, Euler, Quaternion, Vector3 } from 'three';
+import { AnimationMixer, Box3, Euler, InterpolateDiscrete, Quaternion, Vector3 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { exportAvatar } from '../src/avatar/export-avatar.js';
@@ -9,6 +9,7 @@ import { hydrateAvatarReferences } from '../src/avatar/hydrate-avatar-references
 import { createMouthProps } from '../src/avatar/integration/mouth-props.ts';
 import { createTongue } from '../src/avatar/integration/tongue.ts';
 import { createAvatarDriver } from '../src/avatar/runtime.ts';
+import { applyTraitVisibility } from '../src/avatar/traits.js';
 
 const outputDirectory = new URL('../test-results/exports/', import.meta.url);
 await mkdir(outputDirectory, { recursive: true });
@@ -47,7 +48,7 @@ function snapshot(scene) {
     attributes: node.isMesh ? Object.fromEntries(['normal', 'skinIndex', 'skinWeight'].filter(name => node.geometry.attributes[name])
       .map(name => [name, hash(node.geometry.attributes[name].array)])) : null,
     morphGeometry: node.isMesh ? Object.fromEntries(Object.entries(node.geometry.morphAttributes).map(([name, attributes]) => [name, attributes.map(attribute => hash(attribute.array))])) : null,
-    material: node.isMesh ? (Array.isArray(node.material) ? node.material : [node.material]).map(material => ({ uuid: material.uuid, color: material.color?.toArray(), emissive: material.emissive?.toArray() })) : null,
+    material: node.isMesh ? (Array.isArray(node.material) ? node.material : [node.material]).map(material => ({ uuid: material.uuid, color: material.color?.toArray(), emissive: material.emissive?.toArray(), emissiveIntensity: material.emissiveIntensity })) : null,
     data: JSON.stringify(node.userData) }));
   return values;
 }
@@ -108,6 +109,8 @@ async function check(names, exportType, mouthName) {
   const json = decode(buffer);
   const reloaded = await load(buffer);
   const expectedNames = [...names, 'tongue'].sort();
+  const hasBeacon = exportType === 'animated' && names.includes('robot_light');
+  const renderedNames = hasBeacon ? [...expectedNames, 'robot_light_glow'].sort() : expectedNames;
   const beardNames = names.filter(name => ['beard', 'beard_flat'].includes(name));
   // The untouched trait bank is already in its bind pose. Check world space
   // independently: matching local geometry alone misses a doubled Armature
@@ -119,8 +122,8 @@ async function check(names, exportType, mouthName) {
   assertClose(exportedBounds.max.toArray(), referenceBounds.max.toArray(), `${exportType} world bounds max`, 2e-5);
   const exportedHeight = exportedBounds.getSize(new Vector3()).y;
   assert.ok(exportedHeight > .5 && exportedHeight < 3, `${exportType} remains full-size and upright (${exportedHeight}m)`);
-  assert.deepEqual(meshNames(reloaded.scene), expectedNames, 'Only selected traits and dormant tongue appear in generic viewers');
-  assert.equal(json.nodes.filter(node => node.mesh !== undefined).length, expectedNames.length);
+  assert.deepEqual(meshNames(reloaded.scene), renderedNames, 'Only selected traits, dormant tongue, and any lamp glow helper appear');
+  assert.equal(json.nodes.filter(node => node.mesh !== undefined).length, renderedNames.length);
   assert.equal(json.nodes.filter(node => node.name?.startsWith('MFER_Reference_')).length, 0, 'Reference geometry is metadata, never a rendered primitive');
   assert.deepEqual(json.extras.mferSecondaryMotion, reloaded.scene.userData.mferSecondaryMotion);
   assert.equal(reloaded.scene.userData.mferAvatar.defaults.robotArticulation, 'expressive');
@@ -135,8 +138,41 @@ async function check(names, exportType, mouthName) {
   assert.equal(json.extras?.beardMotion, undefined);
   assert.equal(json.extras?.mferAvatar?.beardMotion, undefined);
   for (const chain of json.extras.mferSecondaryMotion.chains) assert.ok(chain.meshes.every(name => names.includes(name)));
-  assert.equal(reloaded.animations.length, exportType === 'animated' ? source.animations.length : 0);
-  if (exportType === 'animated') assert.equal(reloaded.animations[0].tracks.length, source.animations[0].tracks.length);
+  assert.equal(reloaded.animations.length, exportType === 'animated' ? source.animations.length + Number(hasBeacon) : 0);
+  if (exportType === 'animated') assert.equal(reloaded.animations[0].tracks.length, source.animations[0].tracks.length + Number(hasBeacon));
+  if (hasBeacon) {
+    const glow = reloaded.scene.getObjectByName('robot_light_glow');
+    const lamp = reloaded.scene.getObjectByName('robot_light');
+    const blink = reloaded.animations.find(clip => clip.name === 'Beacon Blink');
+    assert(blink && blink.tracks.length === 1);
+    assert.equal(blink.tracks[0].getInterpolation(), InterpolateDiscrete);
+    assert(!json.extensionsUsed?.includes('KHR_animation_pointer'), 'Blink uses core morph animation');
+    assert.deepEqual(reloaded.scene.userData.mferAvatar.auxiliaryMeshes, ['robot_light_glow']);
+    assert.deepEqual(reloaded.scene.userData.mferAvatar.beaconBlink.onPhase, [.15, .37]);
+    for (const attribute of ['skinIndex', 'skinWeight']) assert.equal(hash(glow.geometry.attributes[attribute].array), hash(lamp.geometry.attributes[attribute].array));
+    assertClose(glow.bindMatrix.toArray(), lamp.bindMatrix.toArray(), 'Glow retains lamp binding');
+    assert.deepEqual(glow.skeleton.bones, lamp.skeleton.bones);
+    assert(lamp.material.emissiveIntensity < glow.material.emissiveIntensity / 10, 'Blink has a dim base and bright shell');
+    const mixer = new AnimationMixer(reloaded.scene);
+    mixer.clipAction(blink).play();
+    for (const [fraction, value] of [[0, 0], [.24, 1], [.65, 0], [1.24, 1]]) {
+      mixer.setTime(blink.duration * fraction);
+      assert.equal(glow.morphTargetInfluences[0], value, 'Standalone clip blinks without runtime or body animation');
+    }
+    mixer.stopAllAction();
+    mixer.clipAction(reloaded.animations[0]).play();
+    mixer.setTime(blink.duration * .24);
+    assert.equal(glow.morphTargetInfluences[0], 1, 'Default body clip also blinks');
+    mixer.stopAllAction(); mixer.uncacheRoot(reloaded.scene);
+    const visibility = [];
+    reloaded.scene.traverse(object => visibility.push([object, object.visible]));
+    applyTraitVisibility(reloaded.scene, { type: 'robot' }); assert(glow.visible);
+    applyTraitVisibility(reloaded.scene, { type: 'plain' }); assert(!glow.visible);
+    visibility.forEach(([object, visible]) => { object.visible = visible; });
+  } else {
+    assert.equal(reloaded.scene.userData.mferAvatar.beaconBlink, undefined);
+    assert.equal(reloaded.scene.getObjectByName('robot_light_glow'), undefined);
+  }
   for (const name of expectedNames) {
     const before = source.scene.getObjectByName(name), after = reloaded.scene.getObjectByName(name);
     assert.equal(hash(after.geometry.attributes.position.array), hash(before.geometry.attributes.position.array), `${name} original vertex order/data`);
@@ -247,7 +283,7 @@ async function check(names, exportType, mouthName) {
   assert.deepEqual(snapshot(source.scene), pristine, 'Export did not mutate cached model, geometry, materials, pose or metadata');
   assert.deepEqual(source.animations.map(clip => clip.toJSON()), sourceAnimations);
   await writeFile(new URL(`avatar-${mouthName}${beardNames.length ? `-${beardNames.join('-')}` : ''}-${exportType}.glb`, outputDirectory), new Uint8Array(buffer));
-  return { exportType, mouthName, beardNames, bytes: buffer.byteLength, meshCount: expectedNames.length, height: exportedHeight,
+  return { exportType, mouthName, beardNames, bytes: buffer.byteLength, meshCount: renderedNames.length, height: exportedHeight,
     referenceVertices: json.scenes[0].extras.mferRuntimeReferences?.meshes.reduce((sum, reference) => sum + reference.positions.length / 3, 0) ?? 0 };
 }
 
@@ -255,6 +291,15 @@ const results = [await check(robotNames, 'animated', 'mouth_robot'), await check
   await check(['body', 'type_plain', 'eyes_normal', 'mouth_smile', 'beard', 'hair_short_messy_black', 'smoke_pipe'], 'animated', 'mouth_smile'),
   await check([...robotNames, 'beard_flat'], 't-pose', 'mouth_robot'),
   await check([...flatNames, 'beard_flat'], 'animated', 'mouth_flat_metal')];
+// Exported GLBs can be imported and exported again without stacking helpers or
+// losing the sampled attachment references used by the robot's mouth props.
+const importedRobot = await load(await exportAvatar(source, robotNames, 'animated'));
+const importedSnapshot = snapshot(importedRobot.scene);
+const exportedAgain = await load(await exportAvatar(importedRobot, meshNames(importedRobot.scene), 'animated'));
+assert.deepEqual(meshNames(exportedAgain.scene), meshNames(importedRobot.scene));
+assert.deepEqual(exportedAgain.scene.userData.mferRuntimeReferences, importedRobot.scene.userData.mferRuntimeReferences);
+assert.deepEqual(exportedAgain.animations.map(clip => [clip.name, clip.tracks.length]), importedRobot.animations.map(clip => [clip.name, clip.tracks.length]));
+assert.deepEqual(snapshot(importedRobot.scene), importedSnapshot, 'Re-export keeps its imported source untouched');
 const smile = await load(await exportAvatar(source, ['body', 'type_plain', 'eyes_normal', 'mouth_smile'], 't-pose'));
 assert.equal(smile.scene.userData.mferRuntimeReferences, undefined, 'Selected original reference mouth needs no metadata-only reference');
 const smileDriver = createAvatarDriver(smile.scene, smile);
@@ -265,7 +310,7 @@ await assert.rejects(exportAvatar(source, ['missing_mesh']), /Unknown selected m
 await assert.rejects(exportAvatar(source, [], 't-pose'), /Select an avatar/);
 await assert.rejects(exportAvatar(source, robotNames, 'webcam-pose'), /Unsupported avatar export/);
 const report = { passed: true, assetSHA256: createHash('sha256').update(bytes).digest('hex'), results,
-  checks: ['Selected geometry/morphs/materials/skeleton retained', 'Zero export weights and original world bounds', 'Static Full/Flat beard position, normal and skin data retained',
+  checks: ['Selected geometry/morphs/textures/skeleton retained', 'Core morph beacon blinks in default and standalone clips; T-pose remains static', 'Zero export weights and original world bounds', 'Static Full/Flat beard position, normal and skin data retained',
     'No beard motion targets or metadata', 'Mouth/prop/tongue/physics driver preserved on static beard exports', 'Pristine source pose/material/geometry/morph/metadata isolation'],
   textureVerification: 'Texture presence and material properties checked; raster decoding/encoding stubbed. Browser visual review remains separate.' };
 await writeFile(new URL('validation.json', outputDirectory), JSON.stringify(report, null, 2) + '\n');

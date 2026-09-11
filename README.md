@@ -24,6 +24,10 @@ mouth; the Eyes and Mouth menus can override either. Beards retain their origina
 rigid geometry. Speaker vibration is a separate optional runtime input and is
 silent in the playground by default.
 
+Robot **Animated GLB** exports retain a portable antenna blink in the idle
+animation and a separate **Beacon Blink** clip. The receiving app must play and
+loop an animation. T-Pose exports remain static.
+
 Webcam starts only when clicked. Face, body, hands, and neural tongue detection
 run in the browser; camera frames are not uploaded, and microphone access is not
 requested. Stop, cancellation, hiding the page, and component disposal release

@@ -208,7 +208,9 @@ export function applyTraitVisibility(avatar, selectedTraits) {
   const names = resolveTraitMeshes(selectedTraits);
   avatar.traverse(object => {
     if (!object.isMesh || object.name === 'tongue' || object.userData.mferAttachmentReference) return;
-    object.visible = names.has(object.name);
+    const source = object.name === 'robot_light_glow' && object.userData.mferBeaconGlow?.source === 'robot_light'
+      ? 'robot_light' : object.name;
+    object.visible = names.has(source);
   });
   return names;
 }

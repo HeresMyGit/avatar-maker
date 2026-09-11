@@ -2,7 +2,28 @@
 
 `exportAvatar(pristineGltf, visibleMeshNames, 'animated' | 't-pose')` returns a GLB `ArrayBuffer`. Pass the untouched GLTFLoader result and actual selected mesh node names. The live webcam/avatar instance is never the export source.
 
-The export retains selected traits, their original morph targets and materials, all skeleton joints, and the collapsed neutral tongue. Unselected mesh nodes are removed. Animated exports include the source animation clips; T-pose exports use the skeleton bind pose without animation clips. Every facial morph exports at zero. Source geometry, pose, materials, clips, and metadata remain untouched.
+The export retains selected traits, their original morph targets and textures, all skeleton joints, and the collapsed neutral tongue. Unselected mesh nodes are removed. Animated exports include the source animation clips; T-pose exports use the skeleton bind pose without animation clips. Every facial morph exports at zero. Source geometry, pose, materials, clips, and metadata remain untouched.
+
+## Portable robot beacon
+
+Animated exports containing `robot_light` also include a small skinned
+`robot_light_glow` helper. Its `beaconBlink` morph alternates between just inside
+and just outside the original lamp. The lamp stays fixed and is dimmed only in
+the export clone; the helper has a bright red emissive material. STEP keys avoid
+rendering the surfaces crossing each other. This is an on/off blink approximation
+of the playground's smooth material pulse, using core glTF morph animation.
+
+The blink is included in each original body clip so the default idle flashes.
+A separate `Beacon Blink` clip can be looped alongside a different body animation.
+Play one beacon-driving clip at a time; playing it together with an included idle
+can blend the same morph track. The receiving app must play and loop an animation;
+GLB does not request autoplay. No camera, audio, custom shader, or material-animation
+extension is needed. T-pose exports remain static and have no glow helper.
+
+`mferAvatar.beaconBlink` describes the clip, morph, timing and source lamp;
+`mferAvatar.auxiliaryMeshes` lists the generated helper separately from selected
+traits. The companion runtime and trait visibility adapter also recognize this
+helper when an exported avatar is reimported.
 
 Current curated defaults are Enhanced tracking, automatic neural tongue detection, Expressive robot mouth with independent voice input at zero, and authored hair/hood/shirt/jewelry motion. Original compatible morph targets remain available in the GLB. No pixel-tapping tongue workflow is included.
 
