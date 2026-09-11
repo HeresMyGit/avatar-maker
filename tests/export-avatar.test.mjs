@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { Box3, Euler, Quaternion, Vector3 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -9,6 +9,9 @@ import { hydrateAvatarReferences } from '../src/avatar/hydrate-avatar-references
 import { createMouthProps } from '../src/avatar/integration/mouth-props.ts';
 import { createTongue } from '../src/avatar/integration/tongue.ts';
 import { createAvatarDriver } from '../src/avatar/runtime.ts';
+
+const outputDirectory = new URL('../test-results/exports/', import.meta.url);
+await mkdir(outputDirectory, { recursive: true });
 
 // Geometry/metadata/controller round trip, not a rendered-material test. Retain
 // original image bytes while stubbing browser raster decoding and canvas encode.
@@ -243,7 +246,7 @@ async function check(names, exportType, mouthName) {
   assert.equal(reloaded.scene.getObjectByName('MFER_Reference_mouth_smile'), undefined, 'Driver disposes hydrated reference');
   assert.deepEqual(snapshot(source.scene), pristine, 'Export did not mutate cached model, geometry, materials, pose or metadata');
   assert.deepEqual(source.animations.map(clip => clip.toJSON()), sourceAnimations);
-  await writeFile(`/tmp/avatar-maker-export-${mouthName}${beardNames.length ? `-${beardNames.join('-')}` : ''}-${exportType}.glb`, new Uint8Array(buffer));
+  await writeFile(new URL(`avatar-${mouthName}${beardNames.length ? `-${beardNames.join('-')}` : ''}-${exportType}.glb`, outputDirectory), new Uint8Array(buffer));
   return { exportType, mouthName, beardNames, bytes: buffer.byteLength, meshCount: expectedNames.length, height: exportedHeight,
     referenceVertices: json.scenes[0].extras.mferRuntimeReferences?.meshes.reduce((sum, reference) => sum + reference.positions.length / 3, 0) ?? 0 };
 }
@@ -265,5 +268,5 @@ const report = { passed: true, assetSHA256: createHash('sha256').update(bytes).d
   checks: ['Selected geometry/morphs/materials/skeleton retained', 'Zero export weights and original world bounds', 'Static Full/Flat beard position, normal and skin data retained',
     'No beard motion targets or metadata', 'Mouth/prop/tongue/physics driver preserved on static beard exports', 'Pristine source pose/material/geometry/morph/metadata isolation'],
   textureVerification: 'Texture presence and material properties checked; raster decoding/encoding stubbed. Browser visual review remains separate.' };
-await writeFile(new URL('../../output/avatar-static-beard-export-rollback-validation.json', import.meta.url), JSON.stringify(report, null, 2) + '\n');
+await writeFile(new URL('validation.json', outputDirectory), JSON.stringify(report, null, 2) + '\n');
 console.log(JSON.stringify(report, null, 2));
