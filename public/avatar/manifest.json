@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "file": "mfermashup.glb",
+  "sourceRigSHA256": "032debf71a106edd4f1a4d0705e87c9f8b0015a3c5441c92878782c7db538b14",
+  "sha256": "0f54c685044d6dd28bee9d96d14f5a246147ccc759423ec27dc4e8a34c6d9bea",
+  "binaryGeometryUnchanged": true,
+  "defaults": {
+    "tracking": "enhanced",
+    "tongue": "neural",
+    "robotArticulation": "expressive",
+    "robotVoice": "independent",
+    "robotVoiceLevel": 0,
+    "robotVoiceMode": "speaker",
+    "hair": true,
+    "hood": true,
+    "shirt": true,
+    "jewelry": true
+  },
+  "runtime": "src/avatar/runtime.ts",
+  "exportAdapter": "src/avatar/export-avatar.js",
+  "verticesMustNotBeReordered": "Attachment metadata samples exact vertex indices."
+}

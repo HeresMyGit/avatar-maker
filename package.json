@@ -10,7 +10,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:avatar": "node tests/avatar-traits.test.mjs && node tests/run-avatar-runtime.mjs && node tests/run-export-avatar.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.744.0",

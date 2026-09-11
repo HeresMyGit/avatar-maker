@@ -6,6 +6,7 @@ import { Canvas } from '@react-three/fiber';
 import { formatEther } from 'viem';
 import { sepolia } from 'viem/chains';
 import CharacterPreview from '../components/CharacterPreview';
+import WebcamControls from '../components/WebcamControls';
 import TraitSelector from '../components/TraitSelector';
 import CharacterPlayground from '../components/CharacterPlayground';
 import { generateMetadata } from '../utils/minting';
@@ -561,6 +562,7 @@ function Playground({ themeColor, setThemeColor, standalone = false }) {
   const [acceptedTokens, setAcceptedTokens] = useState([]);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('eth');
   const previewRef = useRef();
+  const captureRef = useRef({ active: false, frame: null });
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [selectedPrice, setSelectedPrice] = useState(null);
@@ -594,8 +596,8 @@ function Playground({ themeColor, setThemeColor, standalone = false }) {
       }
     };
 
-    fetchPrices();
-  }, []);
+    if (!standalone && import.meta.env.VITE_CONTRACT_ADDRESS) fetchPrices();
+  }, [standalone]);
 
   // Initialize theme color
   useEffect(() => {
@@ -996,10 +998,12 @@ function Playground({ themeColor, setThemeColor, standalone = false }) {
           <Canvas>
             <CharacterPreview 
               ref={previewRef}
+              captureRef={captureRef}
               selectedTraits={selectedTraits} 
               themeColor={themeColor}
             />
           </Canvas>
+          <WebcamControls captureRef={captureRef} previewRef={previewRef} themeColor={themeColor} />
         </PreviewSection>
         <SelectorSection themeColor={themeColor}>
           <Title>

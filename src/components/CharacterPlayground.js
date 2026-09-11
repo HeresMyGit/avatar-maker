@@ -35,8 +35,8 @@ class CharacterPlayground {
       Math.random() > 0.5 ? delete traits.short_hair : delete traits.long_hair;
     }
 
-    // New Rule: Ape Type - No Long Hair
-    if (traits.type === 'ape') {
+    // Long hair intersects these head shapes.
+    if (traits.type === 'ape' || traits.type === 'robot') {
       delete traits.long_hair;
     }
 
@@ -162,6 +162,11 @@ class CharacterPlayground {
       delete traits.hat_over_headphones;
     }
 
+    if (isRandomGeneration) {
+      if (traits.type === 'robot') { traits.mouth = 'robot'; traits.eyes = 'robot'; }
+      else { if (traits.mouth === 'robot') traits.mouth = 'smile'; if (traits.eyes === 'robot') traits.eyes = 'regular'; }
+    }
+
     // Final Cleanup: Remove any empty traits
     Object.keys(traits).forEach(key => {
       if (!traits[key]) delete traits[key];
@@ -207,7 +212,8 @@ class CharacterPlayground {
     if (randomValue < 86) return 'ape';
     if (randomValue < 96) return 'alien';
     if (randomValue < 98) return 'based';
-    return 'metal';
+    if (randomValue < 99) return 'metal';
+    return 'robot';
   }
 
   // Get theme color based on selected background
@@ -222,6 +228,13 @@ class CharacterPlayground {
       ...this.selectedTraits,
       [traitType]: value
     };
+    if (traitType === 'type' && value === 'robot' && this.selectedTraits.type !== 'robot') {
+      this.beforeRobot = { mouth: this.selectedTraits.mouth, eyes: this.selectedTraits.eyes };
+      newTraits.mouth = 'robot'; newTraits.eyes = 'robot';
+    } else if (traitType === 'type' && value !== 'robot' && this.selectedTraits.type === 'robot') {
+      newTraits.mouth = this.beforeRobot?.mouth || 'smile';
+      if (newTraits.eyes === 'robot') newTraits.eyes = this.beforeRobot?.eyes || 'regular';
+    }
     // Apply rules with isRandomGeneration = false for manual changes
     this.selectedTraits = this.applyTraitRules(newTraits, false);
     return this.selectedTraits;
@@ -254,4 +267,4 @@ class CharacterPlayground {
   }
 }
 
-export default CharacterPlayground; 
+export default CharacterPlayground;

@@ -23,13 +23,15 @@ export const TRAIT_CATEGORIES = {
       { id: 'alien', label: 'Alien mfer', model: 'alien mfer.glb' },
       { id: 'charcoal', label: 'Charcoal mfer', model: 'charcoal mfer.glb' },
       { id: 'ape', label: 'Ape mfer', model: 'ape mfer.glb' },
-      { id: 'based', label: 'Based $mfer', model: 'based $mfer.glb' }
+      { id: 'based', label: 'Based $mfer', model: 'based $mfer.glb' },
+      { id: 'robot', label: 'Robot mfer', model: 'robot.glb' }
     ]
   },
   eyes: {
     name: 'Eyes',
     options: [
       { id: 'regular', label: 'Regular eyes', model: 'regular eyes.glb' },
+      { id: 'robot', label: 'Robot visor', model: 'robot visor.glb' },
       { id: 'vr', label: 'VR', model: 'vr.glb' },
       { id: 'shades', label: 'Shades', model: 'shades.glb' },
       { id: 'purple_shades', label: 'Purple shades', model: 'purple shades.glb' },
@@ -49,7 +51,8 @@ export const TRAIT_CATEGORIES = {
     name: 'Mouth',
     options: [
       { id: 'flat', label: 'Flat', model: 'flat.glb' },
-      { id: 'smile', label: 'Smile', model: 'smile.glb' }
+      { id: 'smile', label: 'Smile', model: 'smile.glb' },
+      { id: 'robot', label: 'Robot checkerboard', model: 'robot mouth.glb' }
     ]
   },
   headphones: {

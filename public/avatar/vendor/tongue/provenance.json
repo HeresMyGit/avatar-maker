@@ -1,0 +1,104 @@
+{
+  "repository": "https://github.com/xiaofeiyu0723/ExVR",
+  "revision": "ed1887ef1a90a35ffc92e5506998fd4880773e8a",
+  "release": "0.7.2.2",
+  "license_at_revision": "MIT",
+  "purpose": "MIT-era upstream source and weights used for reproducible ONNX export; current GPL prebuilt ONNX is not distributed.",
+  "files": [
+    {
+      "path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/xiaofeiyu0723/ExVR/ed1887ef1a90a35ffc92e5506998fd4880773e8a/LICENSE",
+      "bytes": 1070,
+      "sha256": "cf8c9aa2864afd965a235e84558de937fa44efc8e719eadea106267d083e71da"
+    },
+    {
+      "path": "models/model_epoch_196.pth",
+      "url": "https://raw.githubusercontent.com/xiaofeiyu0723/ExVR/ed1887ef1a90a35ffc92e5506998fd4880773e8a/models/model_epoch_196.pth",
+      "bytes": 2351600,
+      "sha256": "814c7fa322b55a03b09f5d44d83d5315c43ef45c94449fc1f28059227daa9553"
+    },
+    {
+      "path": "tracker/face/tongue.py",
+      "url": "https://raw.githubusercontent.com/xiaofeiyu0723/ExVR/ed1887ef1a90a35ffc92e5506998fd4880773e8a/tracker/face/tongue.py",
+      "bytes": 8294,
+      "sha256": "0cdb94bb8e3b7f42eb2c2e6c3596233cdbc50017de7deedb188dbc5840290b28"
+    },
+    {
+      "path": "tracker/face/tongue_model/model_training.py",
+      "url": "https://raw.githubusercontent.com/xiaofeiyu0723/ExVR/ed1887ef1a90a35ffc92e5506998fd4880773e8a/tracker/face/tongue_model/model_training.py",
+      "bytes": 9749,
+      "sha256": "de6846eb38bf8d5ae162110586e3caafa0ccb04eb2d934ebaef317722800e37a"
+    },
+    {
+      "path": "tracker/face/tongue_model/train_dataset.zip",
+      "url": "https://raw.githubusercontent.com/xiaofeiyu0723/ExVR/ed1887ef1a90a35ffc92e5506998fd4880773e8a/tracker/face/tongue_model/train_dataset.zip",
+      "bytes": 412692,
+      "sha256": "de6b22c68a069d64b02fbcea6b56b5eeeba76b702626351d977c90f32839640d"
+    },
+    {
+      "path": "tracker/face/tongue_model/test_dataset.zip",
+      "url": "https://raw.githubusercontent.com/xiaofeiyu0723/ExVR/ed1887ef1a90a35ffc92e5506998fd4880773e8a/tracker/face/tongue_model/test_dataset.zip",
+      "bytes": 56222,
+      "sha256": "5ffac790e6b17964be69d570bac4142fd2e602ea24c6c79262089461ce047d04"
+    }
+  ],
+  "export": {
+    "exported_sha256": "34e3c8dbe06bd61a46ef56c87e79076f6b116f670f2d5b56400203631ccb3b38",
+    "exported_bytes": 2333874,
+    "versions": {
+      "torch": "2.14.0",
+      "onnx": "1.22.0",
+      "onnxruntime": "1.29.0",
+      "pillow": "12.3.0",
+      "numpy": "2.5.3"
+    },
+    "export": {
+      "opset": 17,
+      "dynamo": false,
+      "fixed_shape": [
+        1,
+        1,
+        32,
+        32
+      ],
+      "weights_only": true
+    },
+    "inputs": [
+      {
+        "name": "mouth",
+        "shape": [
+          1,
+          1,
+          32,
+          32
+        ],
+        "type": "tensor(float)"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "heatmap",
+        "shape": [
+          1,
+          1,
+          32,
+          32
+        ],
+        "type": "tensor(float)"
+      },
+      {
+        "name": "presence",
+        "shape": [
+          1,
+          1
+        ],
+        "type": "tensor(float)"
+      }
+    ],
+    "test_images": 13,
+    "additional_numerical_cases": 3,
+    "parity_passed": true
+  },
+  "distributed_file": "tongue-keypoint.onnx",
+  "reproduction_directory": "scripts/tongue-model-export"
+}

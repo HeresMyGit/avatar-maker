@@ -5,6 +5,7 @@
 
 # Testing
 /coverage
+/test-results
 
 # Production
 /build
@@ -30,4 +31,4 @@ yarn-error.log*
 *.ntvs*
 *.njsproj
 *.sln
-*.sw? 
+*.sw?

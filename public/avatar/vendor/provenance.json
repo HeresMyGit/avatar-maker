@@ -1,0 +1,63 @@
+{
+  "package": "@mediapipe/tasks-vision",
+  "version": "0.10.17",
+  "runtime": "Browser local inference; no camera or audio network upload",
+  "modelSources": {
+    "face_landmarker.task": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+    "pose_landmarker_lite.task": "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+    "pose_landmarker_full.task": "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
+    "hand_landmarker.task": "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+  },
+  "documentation": [
+    "https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker/web_js",
+    "https://developers.google.com/edge/mediapipe/solutions/vision/pose_landmarker/web_js",
+    "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js"
+  ],
+  "files": [
+    {
+      "file": "face_landmarker.task",
+      "bytes": 3758596,
+      "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff"
+    },
+    {
+      "file": "pose_landmarker_lite.task",
+      "bytes": 5777746,
+      "sha256": "59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a"
+    },
+    {
+      "file": "vision_bundle.mjs",
+      "bytes": 139710,
+      "sha256": "1ada13431ea2a8ed7ea449e6c3595122d43fea2a8a4788056ed7da271469b402"
+    },
+    {
+      "file": "wasm/vision_wasm_internal.js",
+      "bytes": 203819,
+      "sha256": "33a4125f825b343d2d9773951a73692f40bee368c9b591af8ff652fd501af90b"
+    },
+    {
+      "file": "wasm/vision_wasm_internal.wasm",
+      "bytes": 9514390,
+      "sha256": "c88cf472dd5cab0a3954b071e5f442102ded3701dcccc987a7a02ee8f54aae85"
+    },
+    {
+      "file": "wasm/vision_wasm_nosimd_internal.js",
+      "bytes": 203672,
+      "sha256": "4e8d07dcf8cbb55b343cd76b7fc30d4303220f049d5529d6412f6f93296726a8"
+    },
+    {
+      "file": "wasm/vision_wasm_nosimd_internal.wasm",
+      "bytes": 9379090,
+      "sha256": "f840f69d7229f89dedaed39c7ac7a52f0964a7cec02d6cb1ac9eff891db86dc2"
+    },
+    {
+      "file": "pose_landmarker_full.task",
+      "bytes": 9398198,
+      "sha256": "5134a3aad27a58b93da0088d431f366da362b44e3ccfbe3462b3827a839011b1"
+    },
+    {
+      "file": "hand_landmarker.task",
+      "bytes": 7819105,
+      "sha256": "fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1"
+    }
+  ]
+}

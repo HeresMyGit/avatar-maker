@@ -31,10 +31,11 @@ jobs:
           cache: 'npm'
       
       - name: Clean install dependencies
-        run: |
-          npm cache clean --force
-          npm install --no-package-lock
+        run: npm ci --no-audit --no-fund
       
+      - name: Check avatar rig and exports
+        run: npm run test:avatar
+
       - name: Build
         run: npm run build
         env:
@@ -55,4 +56,4 @@ jobs:
       
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4 
+        uses: actions/deploy-pages@v4
