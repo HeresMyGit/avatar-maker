@@ -35,6 +35,7 @@ const modelManager = {
   }
 };
 
+// The visible percentage is the 69 joke; loading/completion still use 0–100.
 const LoadingText = ({ children, progress }) => (
   <Text
     position={[0, 0.4, 0]}
@@ -46,7 +47,7 @@ const LoadingText = ({ children, progress }) => (
     outlineWidth={0.02}
     outlineColor="black"
   >
-    {`${children} ${progress.toFixed(1)}%`}
+    {`${children} ${Math.min(69, Math.max(0, progress * 0.69)).toFixed(1)}%`}
   </Text>
 );
 
@@ -590,4 +591,4 @@ const CharacterPreview = forwardRef(({ selectedTraits, themeColor: themecolor, c
   );
 });
 
-export default CharacterPreview; 
+export default CharacterPreview;
