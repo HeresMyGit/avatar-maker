@@ -35,21 +35,36 @@ const modelManager = {
   }
 };
 
-// The visible percentage is the 69 joke; loading/completion still use 0–100.
-const LoadingText = ({ children, progress }) => (
-  <Text
-    position={[0, 0.4, 0]}
-    fontSize={0.3}
-    color="white"
-    anchorX="center"
-    anchorY="middle"
-    font="/SartoshiScript-Regular.otf"
-    outlineWidth={0.02}
-    outlineColor="black"
-  >
-    {`${children} ${Math.min(69, Math.max(0, progress * 0.69)).toFixed(1)}%`}
-  </Text>
-);
+// Finish the 69 joke before parsing ends; actual readiness still uses 0–100.
+const LoadingText = ({ children, progress }) => {
+  const displayedRef = useRef(0);
+  const [displayedProgress, setDisplayedProgress] = useState(0);
+  const nearlyReady = progress >= 95;
+  const target = 69 * Math.sin(Math.min(1, Math.max(0, progress / 95)) * Math.PI / 2);
+
+  useFrame((_, delta) => {
+    displayedRef.current = nearlyReady
+      ? 69
+      : THREE.MathUtils.damp(displayedRef.current, target, 10, Math.min(delta, 0.1));
+    const rounded = Math.round(displayedRef.current * 10) / 10;
+    setDisplayedProgress(previous => previous === rounded ? previous : rounded);
+  });
+
+  return (
+    <Text
+      position={[0, 0.4, 0]}
+      fontSize={0.3}
+      color="white"
+      anchorX="center"
+      anchorY="middle"
+      font="/SartoshiScript-Regular.otf"
+      outlineWidth={0.02}
+      outlineColor="black"
+    >
+      {`${children} ${(nearlyReady ? 69 : displayedProgress).toFixed(1)}%`}
+    </Text>
+  );
+};
 
 // Helper function to normalize trait IDs
 const LoadingModel = ({ children }) => {
